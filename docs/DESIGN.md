@@ -12,6 +12,18 @@ The lore describes a buried Soviet black site, a localised psi radiation that ma
 
 Guiding rule: nothing holds still. The PROGRAMMER rewrites held notes, DARK pushes every stage toward instability, and loud drones sit against sparse transients, mirroring the 28 dB spread between the loudest and quietest reference recordings.
 
+### STALKER SPECIMENS presets (0.2.0)
+
+Five presets use the extracted trilogy audio. Pitched sources were measured from isolated renders of the SPECIMEN layer and tuned with TUNE; levels were matched to the original twelve by K-weighted loudness (about -15.5 LUFS on a held C3, G3, C4 chord) rather than RMS, because the brighter sources read quiet on RMS.
+
+| Preset | Source | Measured | Treatment |
+|---|---|---|---|
+| Yantar Dream | SoC intro, Yantar dream | 33 s, a partial near C4 (261 Hz) | keytrack 100 % so that partial follows the key; long, sparse grains |
+| X-16 Emitter | SoC X-16 psi emitter | strong 118.7 Hz hum | TUNE +1.68 st puts it on C3, an octave under the played note |
+| Emission Front | CS emission idle | rumble at 27 to 58 Hz under a 1.6 to 2 kHz wash | keytrack off; the PROGRAMMER walks grain position |
+| Lab X-8 Lament | CoP Lab X-8 crying | a wail spread over 528 to 578 Hz, centred near 547 Hz | TUNE -0.75 st centres it on C5, an octave over the played note |
+| Oasis Bloom | CoP Oasis noise | 3.2 s burst, bright only in its first fifth | grains held at 8 % with little spray; high-pass filter |
+
 ## Signal flow
 
 Per voice, eight voices:
@@ -31,7 +43,7 @@ Global: voices summed ─> SCRUB ─> NOOSPHERE ─> master gain ─> DC blocker
 
 - **OSC A**: saw with a detuned partner (shape sets detune and blend), pulse (shape narrows the width), wavefolded sine, and "Subtle", a feedback-FM sine. PolyBLEP band-limiting on the saw and pulse.
 - **OSC B**: sine, triangle, saw or square at a free ratio of the note. FM is phase modulation of OSC A.
-- **SPECIMEN**: up to 24 Hann-windowed grains per voice with Hermite interpolation. Sources are decoded on a background thread, mixed to mono, capped at 60 seconds and normalised to -12 dBFS RMS. The audio thread receives buffers through an atomic pointer; retired buffers are freed only after two more audio blocks have started.
+- **SPECIMEN**: up to 24 Hann-windowed grains per voice with Hermite interpolation. Grains play at 2^((keytrack × (note − 60) + tune) / 12) of the original rate, so C4 at full keytrack is the file's own pitch. Sources come from FL Studio's pack or the user's STALKER SPECIMENS library (`<library>/<game>/sounds/...`); catalogue entries are append-only because hosts save the choice index, and the SOURCE menu's sub-menus list them in that same order. Sources are decoded on a background thread, mixed to mono, capped at 60 seconds and normalised to -12 dBFS RMS. The audio thread receives buffers through an atomic pointer; retired buffers are freed only after two more audio blocks have started.
 - **WHISPER**: white noise through three band-passes at Q 12, tuned to 1:2:3 of the formant base.
 - **PRESENCE**: a sine plus its octave at 35 %, with 5.3 Hz vibrato and a slight per-voice detune.
 - **GEIGER**: Poisson-triggered noise bursts with a 0.35 ms decay through a band-pass at the tone frequency.
@@ -44,6 +56,6 @@ Global: voices summed ─> SCRUB ─> NOOSPHERE ─> master gain ─> DC blocker
 
 ## Verification
 
-- `Tests/run_tests.py` renders through `LabX3Render` and checks pitch accuracy within 1 cent, Geiger onset rate within 30 %, all presets finite and below full scale, voice stealing, mono legato, state round trip, CPU headroom and every specimen source.
+- `Tests/run_tests.py` renders through `LabX3Render` and checks pitch accuracy within 1 cent, Geiger onset rate within 30 %, all presets finite and below full scale, voice stealing, mono legato, state round trip, CPU headroom, every specimen source in both libraries, and TUNE moving a sine user file to within 5 cents of the target pitch.
 - `pluginval` at strictness 5 and 10.
 - In-host checks in FL Studio 20.6: plugin scan, playback and a headless project render.

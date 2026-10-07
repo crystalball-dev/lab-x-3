@@ -18,17 +18,31 @@ namespace
 //==============================================================================
 LabX3AudioProcessorEditor::SpecimenControls::SpecimenControls (LabX3AudioProcessorEditor& owner,
                                                                juce::AudioProcessorValueTreeState& state)
-    : source (state, "specimen_source", "SOURCE")
+    : source (state, "specimen_source", "SOURCE", [] (juce::ComboBox& box)
+              {
+                  // One sub-menu per library or game, in the parameter's choice order. The attachment
+                  // counts items depth-first and skips the sub-menu titles, so indices still line up.
+                  auto& menu = *box.getRootMenu();
+                  menu.addItem (1, "User File");
+                  for (int i = 0; i < specimenCatalogSize;)
+                  {
+                      const juce::String group (specimenCatalog[i].group);
+                      juce::PopupMenu entries;
+                      for (; i < specimenCatalogSize && group == specimenCatalog[i].group; ++i)
+                          entries.addItem (i + 2, specimenCatalog[i].name);
+                      menu.addSubMenu (group, entries);
+                  }
+              })
 {
     addAndMakeVisible (source);
     addAndMakeVisible (loadButton);
     addAndMakeVisible (libraryButton);
     addAndMakeVisible (status);
 
-    loadButton.setTooltip ("Load your own audio file as the specimen");
-    libraryButton.setTooltip ("Choose the 'stalker sounds' folder that the catalogue entries are read from");
+    loadButton.setTooltip ("Load any audio file as the specimen; opens in the STALKER SPECIMENS library");
+    libraryButton.setTooltip ("Choose the folders the SOURCE list reads from: STALKER SPECIMENS and FL Studio's pack");
     loadButton.onClick = [&owner] { owner.chooseUserFile(); };
-    libraryButton.onClick = [&owner] { owner.chooseLibraryFolder(); };
+    libraryButton.onClick = [&owner] { owner.showLibraryMenu(); };
 
     status.setFont (monoFont (10.0f));
     status.setJustificationType (juce::Justification::topLeft);
@@ -75,7 +89,7 @@ LabX3AudioProcessorEditor::LabX3AudioProcessorEditor (LabX3AudioProcessor& p)
         { utf8 ("SPECIMEN  //  ОБРАЗЕЦ"), { { specimenControls.get(), 2.7f }, { knob ("specimen_level", "LEVEL"), 1.0f },
                                      { knob ("specimen_position", "POSITION"), 1.0f }, { knob ("specimen_spray", "SPRAY"), 1.0f },
                                      { knob ("specimen_size", "GRAIN"), 1.0f }, { knob ("specimen_density", "DENSITY"), 1.0f },
-                                     { knob ("specimen_track", "KEYTRACK"), 1.0f } } },
+                                     { knob ("specimen_track", "KEYTRACK"), 1.0f }, { knob ("specimen_tune", "TUNE"), 1.0f } } },
         { "WHISPER",               { { knob ("whisper_level", "LEVEL"), 1.0f }, { knob ("whisper_formant", "FORMANT"), 1.0f },
                                      { knob ("whisper_keytrack", "KEYTRACK"), 1.0f } } },
         { "PRESENCE",              { { knob ("presence_level", "LEVEL"), 1.0f }, { knob ("presence_freq", "FREQ"), 1.0f } } },
@@ -353,13 +367,16 @@ void LabX3AudioProcessorEditor::refreshFromProcessor()
         lastProgram = program;
     }
 
-    const auto root = lib.getLibraryRoot();
+    const bool packLinked = lib.getLibraryRoot().isDirectory();
+    const bool specimensLinked = lib.getSpecimensRoot().isDirectory();
     juce::String text;
     text << "VOICES    " << m.activeVoices.load() << " / " << (int) std::lround (audioProcessor.apvts.getRawParameterValue ("voices")->load()) << "\n"
          << "MIDI IN   " << juce::String (m.midiPerSecond.load(), 1) << " /s\n"
          << "PEAK      " << juce::String (m.peakDb.load(), 1) << " dBFS\n"
          << "FAULTS    " << m.faults.load() << "\n"
-         << "LIBRARY   " << (root.isDirectory() ? "LINKED" : "NOT FOUND") << "\n"
+         << "LIBRARY   " << (packLinked && specimensLinked ? "PACK + SPECIMENS"
+                                 : packLinked ? "FL PACK ONLY"
+                                 : specimensLinked ? "SPECIMENS ONLY" : "NOT FOUND") << "\n"
          << "PRESET    " << audioProcessor.getProgramName (program);
     systemLabel.setText (text, juce::dontSendNotification);
 }
@@ -371,6 +388,40 @@ void LabX3AudioProcessorEditor::stepPreset (int delta)
     audioProcessor.setCurrentProgram (next);
     presetBox.setSelectedId (next + 1, juce::dontSendNotification);
     lastProgram = next;
+}
+
+void LabX3AudioProcessorEditor::showLibraryMenu()
+{
+    auto& lib = audioProcessor.getSpecimenLibrary();
+    auto describe = [] (const juce::File& dir) { return dir.isDirectory() ? dir.getFullPathName() : juce::String ("not found"); };
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader ("SOUND LIBRARIES");
+    menu.addItem (1, "STALKER SPECIMENS folder...   (" + describe (lib.getSpecimensRoot()) + ")");
+    menu.addItem (2, "FL Studio 'stalker sounds' folder...   (" + describe (lib.getLibraryRoot()) + ")");
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&specimenControls->libraryButton),
+                        [safeThis = juce::Component::SafePointer<LabX3AudioProcessorEditor> (this)] (int result)
+                        {
+                            if (safeThis == nullptr)
+                                return;
+                            if (result == 1)
+                                safeThis->chooseSpecimensFolder();
+                            else if (result == 2)
+                                safeThis->chooseLibraryFolder();
+                        });
+}
+
+void LabX3AudioProcessorEditor::chooseSpecimensFolder()
+{
+    auto& lib = audioProcessor.getSpecimenLibrary();
+    chooser = std::make_unique<juce::FileChooser> ("Select the STALKER SPECIMENS folder", lib.getSpecimensRoot(), "*");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              const auto dir = fc.getResult();
+                              if (dir.isDirectory())
+                                  audioProcessor.getSpecimenLibrary().setSpecimensRoot (dir, true);
+                          });
 }
 
 void LabX3AudioProcessorEditor::chooseLibraryFolder()
@@ -389,7 +440,9 @@ void LabX3AudioProcessorEditor::chooseLibraryFolder()
 void LabX3AudioProcessorEditor::chooseUserFile()
 {
     auto& lib = audioProcessor.getSpecimenLibrary();
-    const auto start = lib.getUserFile().existsAsFile() ? lib.getUserFile() : lib.getLibraryRoot();
+    const auto start = lib.getUserFile().existsAsFile() ? lib.getUserFile()
+                     : lib.getSpecimensRoot().isDirectory() ? lib.getSpecimensRoot()
+                     : lib.getLibraryRoot();
     chooser = std::make_unique<juce::FileChooser> ("Load a specimen", start, "*.wav;*.ogg;*.flac;*.aif;*.aiff");
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this] (const juce::FileChooser& fc)

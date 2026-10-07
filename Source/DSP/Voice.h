@@ -20,7 +20,7 @@ namespace labx3::dsp
         float subLevel = 0.3f, noiseLevel = 0.0f, noiseColor = 0.5f;
         float geigerDensity = 0.0f, geigerTone = 3000.0f;
 
-        float specLevel = 0.0f, specPosition = 0.3f, specSpray = 0.2f, specSize = 0.12f, specDensity = 24.0f, specTrack = 1.0f;
+        float specLevel = 0.0f, specPosition = 0.3f, specSpray = 0.2f, specSize = 0.12f, specDensity = 24.0f, specTrack = 1.0f, specTune = 0.0f;
         const SpecimenData* specimen = nullptr;
 
         int   filterType = 0;
@@ -234,7 +234,7 @@ namespace labx3::dsp
             gs.spray = std::clamp (p.specSpray + p.dark * 0.3f, 0.0f, 1.0f);
             gs.sizeSeconds = p.specSize;
             gs.density = p.specDensity;
-            gs.rate = std::exp2 (p.specTrack * (basePitch - 60.0f) * (1.0f / 12.0f));
+            gs.rate = std::exp2 ((p.specTrack * (basePitch - 60.0f) + p.specTune) * (1.0f / 12.0f));
 
             // Equal-power pan: each note gets a random position scaled by WIDTH, or the centre when panning is off.
             const float panTarget = p.panEnabled ? std::clamp (panRandom * p.width, -1.0f, 1.0f) : 0.0f;

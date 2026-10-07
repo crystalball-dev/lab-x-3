@@ -16,7 +16,7 @@ namespace labx3
         Kind kind;
         float minValue, maxValue, defaultValue, skewCentre;   // skewCentre 0 = linear range
         Smooth smooth;
-        const char* unit;      // "%", "Hz", "s", "ms", "dB", "ct", "x", "/s", "bit", "oct", ""
+        const char* unit;      // "%", "Hz", "s", "ms", "dB", "ct", "st", "x", "/s", "bit", "oct", ""
         const char* choices;   // '|' separated; "@specimen" builds the specimen list
     };
 
@@ -38,6 +38,7 @@ namespace labx3
             scrubBits, scrubRate,
             nooSize, nooDecay, nooMix,
             dark, volume, voices, glide, width, voicePan,
+            specTune,   // 0.2.0; new parameters are appended so hosts keep their indices
             count
         };
     }
@@ -112,6 +113,7 @@ namespace labx3
             { "glide",             "Glide",               Kind::real,    0.0f,   2.0f,     0.0f,    0.3f,  Smooth::none,   "s",   "" },
             { "stereo_width",      "Stereo Width",        Kind::real,    0.0f,   1.0f,     0.6f,    0.0f,  Smooth::linear, "%",   "" },
             { "voice_pan",         "Voice Panning",       Kind::choice,  0.0f,   1.0f,     1.0f,    0.0f,  Smooth::none,   "",    "Centre|Random" },
+            { "specimen_tune",     "Specimen Tune",       Kind::real,    -24.0f, 24.0f,    0.0f,    0.0f,  Smooth::none,   "st",  "" },
         }};
         return specs;
     }
@@ -166,6 +168,7 @@ namespace labx3
         if (unit == "ms")  return juce::String (juce::roundToInt (v)) + " ms";
         if (unit == "dB")  return juce::String (v, 1) + " dB";
         if (unit == "ct")  return juce::String (juce::roundToInt (v)) + " ct";
+        if (unit == "st")  return (v > 0.0f ? "+" : "") + juce::String (v, 2) + " st";
         if (unit == "x")   return juce::String (v, v < 10.0f ? 3 : 2) + "x";
         if (unit == "/s")  return juce::String (v, v < 10.0f ? 1 : 0) + "/s";
         if (unit == "bit") return juce::String (v, 1) + " bit";

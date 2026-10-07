@@ -10,18 +10,27 @@ LAB X-3 is a fan project. It is not affiliated with or endorsed by GSC Game Worl
 
 - **Two oscillators.** OSC A offers a saw with a detuned partner, a pulse, a wavefolded sine, and "Subtle", a feedback-FM sine. OSC B can be heard on its own or phase-modulate OSC A for inharmonic clusters.
 - **Sub, noise and Geiger.** A sub-octave sine, colour-variable noise, and a Poisson click generator tuned like a dosimeter.
-- **SPECIMEN.** A granular engine that streams sound files from your own disk, by default the `stalker sounds` pack that ships with older FL Studio installs. Grain size, density, spray, position and keytracking turn a recording into playable, unrecognisable texture.
+- **SPECIMEN.** A granular engine that streams sound files from your own disk: the `stalker sounds` pack that ships with older FL Studio installs, and a STALKER SPECIMENS library extracted from your own copies of the games (see [Sound sources](#sound-sources)). Grain size, density, spray, position, keytracking and tuning turn a recording into playable, unrecognisable texture.
 - **WHISPER and PRESENCE.** Noise through three formant resonances at 1:2:3, modelled on the psy-voice recordings, and a high, wavering whine modelled on the controller.
 - **Filter and envelopes.** A driven state-variable filter with low-, band- and high-pass modes, plus amp and filter envelopes.
 - **PROGRAMMER.** A slow, irregular random walk that keeps rewriting pitch, filter, formant or grain position.
 - **SCRUB, NOOSPHERE and DARK.** Bit and sample-rate reduction, an 8-line feedback-delay reverb, and a DARK macro that pushes everything toward instability. The mod wheel adds to DARK.
 - **Panning.** Each note lands at a random position across the stereo field; WIDTH sets how far, and the PAN switch in MASTER turns it off so every note sits in the centre.
-- **12 factory presets**, named after the lore. Switching presets fades out, clears the reverb and starts the new sound from silence, so an old tail is never stretched into the new room.
+- **17 factory presets**, named after the lore; the last five are built on the STALKER SPECIMENS library. Switching presets fades out, clears the reverb and starts the new sound from silence, so an old tail is never stretched into the new room.
 - **SYSTEM readout.** Active voices, incoming MIDI events per second, peak level and a fault counter. If notes sound while nothing should be playing, MIDI IN shows whether a controller is sending them.
 
 ## Sound sources
 
-The SPECIMEN layer reads audio from a folder on your machine. Neither this repository nor its builds include any game audio: `Source/SpecimenCatalog.h` lists relative file paths only. Use **LIBRARY** to point the plugin at your own copy of the pack, or **LOAD FILE** to use any WAV, OGG, FLAC or AIFF file. Without the pack, every layer except SPECIMEN still works.
+The SPECIMEN layer reads audio from folders on your machine. Neither this repository nor its builds include any game audio: `Source/SpecimenCatalog.h` lists relative file paths only. The SOURCE menu has one sub-menu per library:
+
+- **FL STUDIO PACK**: 18 sounds from the legacy `stalker sounds` pack inside an FL Studio install (`Data/Patches/Packs/Legacy/stalker sounds`), found automatically in the usual install folders.
+- **SHADOW OF CHORNOBYL, CLEAR SKY, CALL OF PRYPIAT**: 34 sounds from a STALKER SPECIMENS library, which holds audio you extract yourself from games you own. Lay it out as `<library>/<game>/sounds/<path inside the game>`, with the game folders `shadow_of_chornobyl`, `clear_sky` and `call_of_prypiat`. LAB X-3 looks for `\_AUDIO\STALKER SPECIMENS` on drives F, E, D, C, G and H.
+
+Use **LIBRARY** to point the plugin at either folder, or **LOAD FILE** to use any WAV, OGG, FLAC or AIFF file. A missing library only silences the SPECIMEN layer, and the status line names the library that is missing.
+
+Many game recordings are pitched: mains hums, the X-16 emitter, the crying in Lab X-8. With KEYTRACK at 100 % a file plays at its original pitch on C4; **TUNE** shifts the grains by up to two octaves either way so they agree with the oscillators.
+
+Projects saved with 0.1.x keep their selected source. Automation recorded on SOURCE in 0.1.x now points at different entries, because the list is longer.
 
 ## Building on Windows
 
@@ -48,7 +57,7 @@ Then scan for plugins in FL Studio. LAB X-3 appears under Generators.
 ## Testing
 
 - `LabX3Render` renders presets offline to WAV and reports level, largest sample jump, non-finite samples and render speed.
-- `python Tests/run_tests.py` runs the whole battery: pitch accuracy, Geiger click rate, every preset, voice stealing, legato, state round trip, CPU load and every specimen source.
+- `python Tests/run_tests.py` runs the whole battery: pitch accuracy, Geiger click rate, every preset, voice stealing, legato, state round trip, CPU load, every specimen source in both libraries and specimen tuning. `--library` and `--specimens` point it at folders in other locations.
 - `scripts/validate.ps1` runs [pluginval](https://github.com/Tracktion/pluginval).
 
 ## Licence

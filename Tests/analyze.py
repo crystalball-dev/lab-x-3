@@ -38,6 +38,16 @@ def dominant_frequency(mono, sr, fmin=20.0):
     return freqs[k]
 
 
+def band_centre(mono, sr, lo, hi):
+    """Power-weighted mean frequency between lo and hi Hz. Grains with random phases spread a tone
+    over the grain window's main lobe with a random fine structure; its centre is steadier than its peak."""
+    n = 1 << int(math.ceil(math.log2(len(mono))))
+    spec = np.abs(np.fft.rfft(mono * np.hanning(len(mono)), n)) ** 2
+    freqs = np.fft.rfftfreq(n, 1.0 / sr)
+    band = (freqs >= lo) & (freqs <= hi)
+    return float(np.sum(freqs[band] * spec[band]) / (np.sum(spec[band]) + 1e-30))
+
+
 def band_split(mono, sr):
     n = 8192
     if len(mono) < n:
@@ -83,6 +93,8 @@ def analyse(path, args):
     if args.pitch:
         cents = 1200 * math.log2(result["dominant_hz"] / args.pitch)
         result["pitch_error_cents"] = round(cents, 3)
+        centre = band_centre(mono, sr, args.pitch * 0.94, args.pitch * 1.06)
+        result["centre_error_cents"] = round(1200 * math.log2(centre / args.pitch), 3)
         checks.append(abs(cents) <= 1.0)
     if args.onsets:
         rate = onset_rate(mono, sr)
@@ -106,7 +118,7 @@ def main():
         print(json.dumps(results, indent=2))
     else:
         for r in results:
-            extras = " ".join(f"{k}={r[k]}" for k in ("pitch_error_cents", "onsets_per_s") if k in r)
+            extras = " ".join(f"{k}={r[k]}" for k in ("pitch_error_cents", "centre_error_cents", "onsets_per_s") if k in r)
             bands = " ".join(f"{k}:{v}" for k, v in r["bands_db"].items())
             print(f"{'PASS' if r['pass'] else 'FAIL'} {r['file']} peak={r['peak_db']} rms={r['rms_db']} "
                   f"dc={r['dc']} jump={r['max_jump']} f0={r['dominant_hz']} {extras}\n      bands {bands}")

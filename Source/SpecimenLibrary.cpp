@@ -10,6 +10,7 @@ namespace labx3
         constexpr double maxSeconds = 60.0;     // longest stretch of a file that is decoded
         constexpr float targetRms = 0.25f;      // -12 dBFS after normalisation
         constexpr float peakCeiling = 2.0f;     // sources may exceed full scale; the voice drive stage tames them
+        constexpr float corruptLevel = 16.0f;   // +24 dBFS: decoded audio never gets near this
 
         juce::PropertiesFile::Options settingsOptions()
         {
@@ -84,6 +85,8 @@ namespace labx3
         settings = std::make_unique<juce::PropertiesFile> (settingsOptions());
         juce::File saved (settings->getValue ("libraryRoot"));
         root = looksLikePack (saved) ? saved : autodetectRoot();
+        juce::File savedSpecimens (settings->getValue ("specimensRoot"));
+        specimensRoot = looksLikeSpecimensLibrary (savedSpecimens) ? savedSpecimens : autodetectSpecimensRoot();
 
         startThread (juce::Thread::Priority::low);
     }
@@ -114,6 +117,27 @@ namespace labx3
             if (looksLikePack (c))
                 return c;
 
+        return {};
+    }
+
+    bool SpecimenLibrary::looksLikeSpecimensLibrary (const juce::File& folder)
+    {
+        if (! folder.isDirectory())
+            return false;
+        for (const auto* game : specimensGameFolders)
+            if (folder.getChildFile (game).getChildFile ("sounds").isDirectory())
+                return true;
+        return false;
+    }
+
+    juce::File SpecimenLibrary::autodetectSpecimensRoot()
+    {
+        for (auto drive : { "F", "E", "D", "C", "G", "H" })
+        {
+            const juce::File candidate (juce::String (drive) + ":\\" + juce::String (specimensLibrarySubPath).replaceCharacter ('/', '\\'));
+            if (looksLikeSpecimensLibrary (candidate))
+                return candidate;
+        }
         return {};
     }
 
@@ -149,6 +173,27 @@ namespace labx3
     {
         const juce::ScopedLock sl (lock);
         return root;
+    }
+
+    void SpecimenLibrary::setSpecimensRoot (const juce::File& folder, bool persist)
+    {
+        {
+            const juce::ScopedLock sl (lock);
+            specimensRoot = folder;
+        }
+        if (persist && settings != nullptr)
+        {
+            settings->setValue ("specimensRoot", folder.getFullPathName());
+            settings->saveIfNeeded();
+        }
+        generation.fetch_add (1);
+        notify();
+    }
+
+    juce::File SpecimenLibrary::getSpecimensRoot() const
+    {
+        const juce::ScopedLock sl (lock);
+        return specimensRoot;
     }
 
     void SpecimenLibrary::setUserFile (const juce::File& file)
@@ -228,6 +273,7 @@ namespace labx3
     {
         juce::File file;
         juce::String name;
+        bool fromSpecimens = false;
         {
             const juce::ScopedLock sl (lock);
             if (choice == specimenUserChoice)
@@ -239,15 +285,18 @@ namespace labx3
             {
                 const auto& entry = specimenCatalog[choice - 1];
                 name = entry.name;
-                if (root.isDirectory())
-                    file = root.getChildFile (entry.relativePath);
+                fromSpecimens = entry.source == SpecimenSource::specimens;
+                const auto& base = fromSpecimens ? specimensRoot : root;
+                if (base.isDirectory())
+                    file = base.getChildFile (entry.relativePath);
             }
         }
 
         if (choice != specimenUserChoice && file == juce::File())
         {
             publish (nullptr);
-            setStatus (Status::missingLibrary, "LIBRARY NOT FOUND / SET FOLDER");
+            setStatus (Status::missingLibrary, fromSpecimens ? "SPECIMENS LIBRARY NOT FOUND / SET FOLDER"
+                                                             : "FL PACK NOT FOUND / SET FOLDER");
             return;
         }
 
@@ -299,6 +348,24 @@ namespace labx3
             for (int ch = 0; ch < channels; ++ch)
                 s += decoded.getSample (ch, i);
             d[i] = s / (float) channels;
+        }
+
+        // A few game files decode with a burst of garbage, values in the thousands, where the stream
+        // starts. Left in, one burst would set the normalising gain and bury the rest of the file, so
+        // every out-of-range or non-finite sample is silenced together with the 10 ms around it.
+        {
+            const int radius = (int) (reader->sampleRate * 0.01);
+            int silencedTo = 0;
+            for (int i = 0; i < length; ++i)
+            {
+                if (std::isfinite (d[i]) && std::abs (d[i]) <= corruptLevel)
+                    continue;
+                const int from = std::max (silencedTo, i - radius);
+                const int to = std::min (length, i + radius + 1);
+                std::fill (d + from, d + std::max (from, to), 0.0f);
+                silencedTo = std::max (silencedTo, to);
+                i = to - 1;
+            }
         }
 
         flattenDynamics (d, length, reader->sampleRate);

@@ -54,7 +54,9 @@ private:
     labx3::ui::LabeledToggle* toggle (const char* id, const char* caption, const char* onText, const char* offText);
     void layoutRow (std::vector<Panel>& row, juce::Rectangle<int> area, float unitWidth);
     void stepPreset (int delta);
+    void showLibraryMenu();
     void chooseLibraryFolder();
+    void chooseSpecimensFolder();
     void chooseUserFile();
 
     LabX3AudioProcessor& audioProcessor;

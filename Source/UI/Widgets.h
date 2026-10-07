@@ -59,9 +59,15 @@ namespace labx3::ui
     class LabeledChoice final : public juce::Component
     {
     public:
-        LabeledChoice (APVTS& state, const juce::String& paramID, const juce::String& caption)
+        // populate, when given, fills the box itself (headings, sub-menus). Items must stay in
+        // parameter order: the attachment maps item index to choice index, counting depth-first
+        // and skipping headings and sub-menu titles.
+        LabeledChoice (APVTS& state, const juce::String& paramID, const juce::String& caption,
+                       std::function<void (juce::ComboBox&)> populate = nullptr)
         {
-            if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter (paramID)))
+            if (populate != nullptr)
+                populate (box);
+            else if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter (paramID)))
                 box.addItemList (choice->choices, 1);
 
             label.setText (caption, juce::dontSendNotification);

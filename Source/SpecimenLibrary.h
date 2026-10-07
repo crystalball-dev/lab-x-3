@@ -27,9 +27,12 @@ namespace labx3
         // Audio thread: call once at the start of every block and use the result for that block.
         const dsp::SpecimenData* acquireForBlock() noexcept;
 
-        // Message thread.
+        // Message thread. The library root is FL Studio's "stalker sounds" pack; the specimens root
+        // is the user's STALKER SPECIMENS library (<root>/<game>/sounds/...).
         void setLibraryRoot (const juce::File& folder, bool persist);
         juce::File getLibraryRoot() const;
+        void setSpecimensRoot (const juce::File& folder, bool persist);
+        juce::File getSpecimensRoot() const;
         void setUserFile (const juce::File& file);
         juce::File getUserFile() const;
 
@@ -43,6 +46,8 @@ namespace labx3
         bool waitUntilSettled (int timeoutMs) const;
 
         static juce::File autodetectRoot();
+        static juce::File autodetectSpecimensRoot();
+        static bool looksLikeSpecimensLibrary (const juce::File& folder);
 
     private:
         void run() override;
@@ -54,8 +59,8 @@ namespace labx3
         juce::AudioFormatManager formats;
         std::unique_ptr<juce::PropertiesFile> settings;
 
-        mutable juce::CriticalSection lock;   // guards root, userFile, statusText
-        juce::File root, userFile;
+        mutable juce::CriticalSection lock;   // guards root, specimensRoot, userFile, statusText
+        juce::File root, specimensRoot, userFile;
         juce::String statusText { "NO SPECIMEN" };
 
         std::atomic<int> requested { -1 }, generation { 0 };

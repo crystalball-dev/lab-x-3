@@ -2,9 +2,9 @@
 //
 //   LabX3Render --out <file.wav> [--preset <n|name>] [--notes 48,55,60] [--events "60@0-2,64@0.5-2"]
 //               [--seconds 6] [--hold 4] [--velocity 0.8] [--sr 48000] [--block 512]
-//               [--library <dir>] [--userfile <file>] [--set id=value ...]
+//               [--library <dir>] [--specimens <dir>] [--userfile <file>] [--set id=value ...]
 //               [--program-at "4@2.5,7@5"] [--tail-from <seconds>]
-//               [--png <file.png>] [--roundtrip] [--list]
+//               [--png <file.png>] [--roundtrip] [--list] [--list-specimens]
 //
 //   LabX3Render --fuzz --seconds 300 [--seed 1] [--vary-blocks] [--out <file.wav>]
 //       Random session: notes, presets, parameter moves, mod wheel, bend, sustain. Every 30 s
@@ -18,6 +18,17 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "FactoryPresets.h"
+#include <ctime>
+
+#if JUCE_WINDOWS
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN
+ #endif
+ #include <windows.h>
+#endif
 
 namespace
 {
@@ -83,6 +94,19 @@ namespace
     double ticksToMs (juce::int64 ticks)
     {
         return juce::Time::highResolutionTicksToSeconds (ticks) * 1000.0;
+    }
+
+    // CPU time used by the calling thread, in milliseconds. Unlike wall time it does not stretch
+    // when other programs keep the machine busy, so the CPU benchmark stays meaningful.
+    double threadCpuMs()
+    {
+       #if JUCE_WINDOWS
+        FILETIME created, exited, kernel, user;
+        if (GetThreadTimes (GetCurrentThread(), &created, &exited, &kernel, &user))
+            return (double) ((((juce::uint64) kernel.dwHighDateTime << 32) | kernel.dwLowDateTime)
+                             + (((juce::uint64) user.dwHighDateTime << 32) | user.dwLowDateTime)) / 10000.0;
+       #endif
+        return 1000.0 * (double) std::clock() / CLOCKS_PER_SEC;
     }
 
     struct BlockTimer
@@ -326,6 +350,13 @@ int main (int argc, char* argv[])
         return 0;
     }
 
+    if (args.contains ("--list-specimens"))
+    {
+        for (int i = 0; i < labx3::specimenCatalogSize; ++i)
+            std::cout << i + 1 << "\t" << labx3::specimenCatalog[i].name << "\t" << labx3::specimenCatalog[i].group << std::endl;
+        return 0;
+    }
+
     const double sampleRate = option (args, "--sr", "48000").getDoubleValue();
     const int blockSize = option (args, "--block", "512").getIntValue();
     const double seconds = option (args, "--seconds", "6").getDoubleValue();
@@ -337,6 +368,8 @@ int main (int argc, char* argv[])
 
     if (args.contains ("--library"))
         proc->getSpecimenLibrary().setLibraryRoot (juce::File (option (args, "--library")), false);
+    if (args.contains ("--specimens"))
+        proc->getSpecimenLibrary().setSpecimensRoot (juce::File (option (args, "--specimens")), false);
     if (args.contains ("--userfile"))
         proc->getSpecimenLibrary().setUserFile (juce::File (option (args, "--userfile")));
 
@@ -404,6 +437,7 @@ int main (int argc, char* argv[])
     BlockTimer timer;
 
     const auto t0 = juce::Time::getMillisecondCounterHiRes();
+    const auto cpu0 = threadCpuMs();
     for (int pos = 0; pos < total; pos += blockSize)
     {
         const int n = std::min (blockSize, total - pos);
@@ -431,6 +465,7 @@ int main (int argc, char* argv[])
         timer.add (ticksToMs (juce::Time::getHighResolutionTicks() - start), 1000.0 * (double) n / sampleRate);
     }
     const double elapsedMs = juce::Time::getMillisecondCounterHiRes() - t0;
+    const double cpuMs = threadCpuMs() - cpu0;
 
     // Statistics
     int nonFinite = 0;
@@ -454,6 +489,7 @@ int main (int argc, char* argv[])
     }
     const double rms = std::sqrt (sumSquares / std::max (1, total * 2));
     const double realtimeFactor = (seconds * 1000.0) / std::max (0.001, elapsedMs);
+    const double cpuRealtimeFactor = (seconds * 1000.0) / std::max (0.001, cpuMs);
 
     std::cout << "preset=\"" << proc->getProgramName (proc->getCurrentProgram()) << "\""
               << " specimen=\"" << proc->getSpecimenLibrary().getStatusText() << "\""
@@ -464,6 +500,8 @@ int main (int argc, char* argv[])
               << " non_finite=" << nonFinite
               << " render_ms=" << juce::String (elapsedMs, 1)
               << " realtime_x=" << juce::String (realtimeFactor, 1)
+              << " cpu_ms=" << juce::String (cpuMs, 1)
+              << " cpu_realtime_x=" << juce::String (cpuRealtimeFactor, 1)
               << timer.summary();
 
     if (args.contains ("--tail-from"))

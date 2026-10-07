@@ -294,6 +294,7 @@ void LabX3AudioProcessor::updateControl (int n) noexcept
     p.specSize     = v[P::specSize] * 0.001f;
     p.specDensity  = v[P::specDensity];
     p.specTrack    = v[P::specTrack];
+    p.specTune     = v[P::specTune];
 
     p.filterType = (int) std::lround (v[P::filterType]);
     p.cutoff     = v[P::cutoff];

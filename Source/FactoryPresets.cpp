@@ -8,7 +8,7 @@ namespace labx3
         // Choice indices, spelled out for readability.
         constexpr float saw = 0, square = 1, sine = 2, subtle = 3;            // OSC A
         constexpr float bSine = 0, bTriangle = 1, bSaw = 2, bSquare = 3;      // OSC B
-        constexpr float lowpass = 0, bandpass = 1;                            // filter
+        constexpr float lowpass = 0, bandpass = 1, highpass = 2;              // filter
         constexpr float toPitch = 0, toFilter = 1, toFormant = 2, toSpecimen = 3, toAll = 4;
 
         float spec (const char* name) { return (float) specimenChoiceForName (name); }
@@ -202,6 +202,92 @@ namespace labx3
                 { "prog_rate", 0.07f }, { "prog_depth", 0.4f }, { "prog_target", toSpecimen },
                 { "noo_size", 1.0f }, { "noo_decay", 0.8f }, { "noo_mix", 0.5f },
                 { "dark", 0.5f }, { "master_volume", -7.5f } } });
+
+            // The STALKER SPECIMENS library (0.2.0). These need the user's own extracted game audio;
+            // without it the SPECIMEN layer stays silent and the status line says so.
+
+            // 13. The dream from the Yantar intro: a hazy sine pad, long grains of the recording drifting by.
+            p.push_back ({ "Yantar Dream", {
+                { "osc_a_wave", sine }, { "osc_a_shape", 0.3f }, { "osc_a_level", 0.4f },
+                { "osc_b_wave", bTriangle }, { "osc_b_ratio", 2.0f }, { "osc_b_fm", 0.08f }, { "osc_b_level", 0.25f },
+                { "sub_level", 0.2f }, { "noise_level", 0.02f }, { "noise_color", 0.3f },
+                { "specimen_source", spec ("SoC / Yantar Dream") }, { "specimen_level", 0.55f }, { "specimen_position", 0.45f },
+                { "specimen_spray", 0.5f }, { "specimen_size", 420.0f }, { "specimen_density", 10.0f }, { "specimen_track", 1.0f },
+                { "filter_type", lowpass }, { "filter_cutoff", 2200.0f }, { "filter_res", 0.2f }, { "filter_drive", 3.0f },
+                { "filter_env", 0.15f }, { "filter_keytrack", 0.4f },
+                { "env1_attack", 1.8f }, { "env1_decay", 2.5f }, { "env1_sustain", 0.85f }, { "env1_release", 5.0f },
+                { "env2_attack", 2.5f }, { "env2_decay", 3.0f }, { "env2_sustain", 0.6f }, { "env2_release", 4.0f },
+                { "prog_rate", 0.06f }, { "prog_depth", 0.4f }, { "prog_target", toSpecimen },
+                { "whisper_level", 0.06f }, { "whisper_formant", 160.0f }, { "whisper_keytrack", 0.3f },
+                { "noo_size", 0.9f }, { "noo_decay", 0.75f }, { "noo_mix", 0.45f },
+                { "dark", 0.2f }, { "master_volume", -7.6f }, { "stereo_width", 0.85f } } });
+
+            // 14. The X-16 psi emitter, tuned so its 119 Hz hum lands an octave under the played note, in a swept low-pass.
+            p.push_back ({ "X-16 Emitter", {
+                { "osc_a_wave", saw }, { "osc_a_shape", 0.5f }, { "osc_a_level", 0.45f }, { "osc_a_detune", 8.0f },
+                { "osc_b_wave", bSquare }, { "osc_b_ratio", 0.5f }, { "osc_b_fm", 0.12f }, { "osc_b_level", 0.2f },
+                { "sub_level", 0.3f }, { "noise_level", 0.03f },
+                { "specimen_source", spec ("SoC / X-16 Psi Emitter") }, { "specimen_level", 0.6f }, { "specimen_position", 0.22f },
+                { "specimen_spray", 0.25f }, { "specimen_size", 280.0f }, { "specimen_density", 16.0f }, { "specimen_track", 1.0f },
+                { "specimen_tune", 1.68f },
+                { "filter_type", lowpass }, { "filter_cutoff", 900.0f }, { "filter_res", 0.45f }, { "filter_drive", 9.0f },
+                { "filter_env", 0.3f }, { "filter_keytrack", 0.5f },
+                { "env1_attack", 0.6f }, { "env1_decay", 1.5f }, { "env1_sustain", 0.85f }, { "env1_release", 3.0f },
+                { "env2_attack", 0.8f }, { "env2_decay", 2.0f }, { "env2_sustain", 0.5f }, { "env2_release", 2.5f },
+                { "prog_rate", 0.35f }, { "prog_depth", 0.5f }, { "prog_target", toFilter },
+                { "whisper_level", 0.12f }, { "whisper_formant", 240.0f }, { "whisper_keytrack", 0.3f },
+                { "presence_level", 0.04f },
+                { "noo_size", 0.6f }, { "noo_decay", 0.55f }, { "noo_mix", 0.3f },
+                { "dark", 0.4f }, { "master_volume", -9.7f }, { "stereo_width", 0.6f } } });
+
+            // 15. Clear Sky's emission idling on the horizon over a dark detuned saw pad; the Programmer walks the grains.
+            p.push_back ({ "Emission Front", {
+                { "osc_a_wave", saw }, { "osc_a_shape", 0.7f }, { "osc_a_level", 0.4f },
+                { "osc_b_wave", bSaw }, { "osc_b_ratio", 0.5f }, { "osc_b_fm", 0.0f }, { "osc_b_level", 0.3f },
+                { "sub_level", 0.35f }, { "noise_level", 0.05f }, { "noise_color", 0.35f },
+                { "geiger_density", 2.0f }, { "geiger_tone", 2600.0f },
+                { "specimen_source", spec ("CS / Emission Idle") }, { "specimen_level", 0.65f }, { "specimen_position", 0.5f },
+                { "specimen_spray", 0.7f }, { "specimen_size", 350.0f }, { "specimen_density", 12.0f }, { "specimen_track", 0.0f },
+                { "filter_type", lowpass }, { "filter_cutoff", 1100.0f }, { "filter_res", 0.3f }, { "filter_drive", 8.0f },
+                { "filter_env", 0.35f }, { "filter_keytrack", 0.4f },
+                { "env1_attack", 2.5f }, { "env1_decay", 3.0f }, { "env1_sustain", 0.9f }, { "env1_release", 6.0f },
+                { "env2_attack", 4.0f }, { "env2_decay", 4.0f }, { "env2_sustain", 0.4f }, { "env2_release", 5.0f },
+                { "prog_rate", 0.04f }, { "prog_depth", 0.5f }, { "prog_target", toSpecimen },
+                { "noo_size", 0.95f }, { "noo_decay", 0.7f }, { "noo_mix", 0.4f },
+                { "dark", 0.45f }, { "master_volume", -8.5f }, { "stereo_width", 0.9f } } });
+
+            // 16. The crying in Lab X-8, tuned so the cry sits an octave above the played note, over a hollow square pad.
+            p.push_back ({ "Lab X-8 Lament", {
+                { "osc_a_wave", square }, { "osc_a_shape", 0.35f }, { "osc_a_level", 0.35f },
+                { "osc_b_wave", bSine }, { "osc_b_ratio", 3.0f }, { "osc_b_fm", 0.1f }, { "osc_b_level", 0.15f },
+                { "sub_level", 0.15f }, { "noise_level", 0.02f }, { "noise_color", 0.6f },
+                { "specimen_source", spec ("CoP / Lab X-8 Crying") }, { "specimen_level", 0.6f }, { "specimen_position", 0.15f },
+                { "specimen_spray", 0.35f }, { "specimen_size", 240.0f }, { "specimen_density", 14.0f }, { "specimen_track", 1.0f },
+                { "specimen_tune", -0.75f },
+                { "filter_type", lowpass }, { "filter_cutoff", 2400.0f }, { "filter_res", 0.25f }, { "filter_drive", 4.0f },
+                { "filter_env", 0.2f }, { "filter_keytrack", 0.7f },
+                { "env1_attack", 1.2f }, { "env1_decay", 2.0f }, { "env1_sustain", 0.8f }, { "env1_release", 4.5f },
+                { "env2_attack", 1.5f }, { "env2_decay", 2.5f }, { "env2_sustain", 0.5f }, { "env2_release", 4.0f },
+                { "prog_rate", 0.12f }, { "prog_depth", 0.35f }, { "prog_target", toFormant },
+                { "whisper_level", 0.18f }, { "whisper_formant", 300.0f }, { "whisper_keytrack", 0.6f },
+                { "noo_size", 0.85f }, { "noo_decay", 0.72f }, { "noo_mix", 0.45f },
+                { "dark", 0.3f }, { "master_volume", -8.2f }, { "stereo_width", 0.75f } } });
+
+            // 17. The Oasis under Jupiter: the bright bloom of its noise in short grains, over a glassy high-passed pad.
+            p.push_back ({ "Oasis Bloom", {
+                { "osc_a_wave", sine }, { "osc_a_shape", 0.6f }, { "osc_a_level", 0.8f },
+                { "osc_b_wave", bSine }, { "osc_b_ratio", 4.0f }, { "osc_b_fm", 0.22f }, { "osc_b_level", 0.12f },
+                { "sub_level", 0.1f }, { "noise_level", 0.03f }, { "noise_color", 0.8f },
+                { "specimen_source", spec ("CoP / Oasis Noise") }, { "specimen_level", 0.65f }, { "specimen_position", 0.08f },
+                { "specimen_spray", 0.12f }, { "specimen_size", 90.0f }, { "specimen_density", 40.0f }, { "specimen_track", 0.6f },
+                { "filter_type", highpass }, { "filter_cutoff", 120.0f }, { "filter_res", 0.2f }, { "filter_drive", 2.0f },
+                { "filter_env", 0.0f }, { "filter_keytrack", 0.3f },
+                { "env1_attack", 0.8f }, { "env1_decay", 2.0f }, { "env1_sustain", 0.85f }, { "env1_release", 4.0f },
+                { "env2_attack", 1.0f }, { "env2_decay", 2.0f }, { "env2_sustain", 0.5f }, { "env2_release", 3.0f },
+                { "prog_rate", 0.18f }, { "prog_depth", 0.2f }, { "prog_target", toFilter },
+                { "presence_level", 0.03f }, { "presence_freq", 5200.0f },
+                { "noo_size", 0.9f }, { "noo_decay", 0.8f }, { "noo_mix", 0.5f },
+                { "dark", 0.1f }, { "master_volume", -5.7f }, { "stereo_width", 0.9f } } });
 
             return p;
         }
