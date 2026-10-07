@@ -48,7 +48,8 @@ public:
     struct Meters
     {
         std::atomic<float> rmsDb { -100.0f }, peakDb { -100.0f }, clicksPerSecond { 0.0f }, dark { 0.0f };
-        std::atomic<int> activeVoices { 0 };
+        std::atomic<float> midiPerSecond { 0.0f };
+        std::atomic<int> activeVoices { 0 }, faults { 0 };
     };
     Meters meters;
 
@@ -76,6 +77,8 @@ private:
     void renderControlBlock (float* left, float* right, int n, const labx3::dsp::SpecimenData* specimen) noexcept;
     void updateControl (int n) noexcept;
     void applyEffects (float* left, float* right, int n) noexcept;
+    void flushForProgramChange() noexcept;
+    void recoverFromFault() noexcept;
 
     void handleMidi (const juce::MidiMessage& m) noexcept;
     void noteOn (int note, float velocity) noexcept;
@@ -92,7 +95,7 @@ private:
     std::array<std::atomic<float>*, labx3::P::count> raw {};
     std::array<Smoother, labx3::P::count> smoothers {};
     std::array<float, labx3::P::count> values {};
-    std::array<float, labx3::controlBlock + 1> smoothCoef {};
+    std::array<float, labx3::controlBlock + 1> smoothCoef {}, duckCoef {};
 
     std::array<labx3::dsp::Voice, labx3::maxVoices> voices;
     labx3::dsp::VoiceParams voiceParams;
@@ -113,6 +116,18 @@ private:
     uint64_t voiceClock = 0;
     int lastSpecimenChoice = -1;
 
+    // SPECIMEN source changes: the grain layer ducks out until the new file has been published.
+    bool specimenAwait = false;
+    uint64_t specimenAwaitId = 0;
+    float specimenDuck = 1.0f;
+
+    // Preset changes: fade out, clear voices and reverb, fade back in.
+    enum class SwitchState { idle, fadingOut, fadingIn };
+    std::atomic<bool> programChangePending { false };
+    SwitchState switchState = SwitchState::idle;
+    int switchFadeRemaining = 0, switchFadeLength = 1440;
+    float switchGain = 1.0f, switchFadeInStep = 0.005f;
+
     // Output stage
     float masterGain = 0.35f, dcInL = 0.0f, dcInR = 0.0f, dcOutL = 0.0f, dcOutR = 0.0f;
     float darkEffective = 0.0f;
@@ -120,7 +135,7 @@ private:
     // Metering
     std::array<float, scopeSize> scope {};
     std::atomic<int> scopeWrite { 0 };
-    int clickAccumulator = 0, clickSamples = 0;
+    int clickAccumulator = 0, clickSamples = 0, midiAccumulator = 0;
 
     int currentProgram = 0;
 

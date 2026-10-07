@@ -88,6 +88,46 @@ namespace labx3::ui
         std::unique_ptr<APVTS::ComboBoxAttachment> attachment;
     };
 
+    // On/off parameter as a latching button with a caption above. The button reads onText or offText.
+    class LabeledToggle final : public juce::Component
+    {
+    public:
+        LabeledToggle (APVTS& state, const juce::String& paramID, const juce::String& caption,
+                       const juce::String& onText, const juce::String& offText)
+            : textOn (onText), textOff (offText)
+        {
+            button.setClickingTogglesState (true);
+            button.onStateChange = [this] { button.setButtonText (button.getToggleState() ? textOn : textOff); };
+
+            label.setText (caption, juce::dontSendNotification);
+            label.setJustificationType (juce::Justification::centred);
+            label.setInterceptsMouseClicks (false, false);
+
+            addAndMakeVisible (label);
+            addAndMakeVisible (button);
+            attachment = std::make_unique<APVTS::ButtonAttachment> (state, paramID, button);
+            button.setButtonText (button.getToggleState() ? textOn : textOff);
+
+            if (auto* param = state.getParameter (paramID))
+                button.setTooltip (param->getName (64));
+        }
+
+        void resized() override
+        {
+            auto b = getLocalBounds();
+            label.setBounds (b.removeFromTop (13));
+            b.removeFromTop (10);
+            button.setBounds (b.removeFromTop (24).reduced (2, 0));
+        }
+
+        juce::TextButton button;
+        juce::Label label;
+
+    private:
+        juce::String textOn, textOff;
+        std::unique_ptr<APVTS::ButtonAttachment> attachment;
+    };
+
     // Dosimeter gauge. Shows a pseudo dose rate driven by geiger activity and output level.
     class RadiationMeter final : public juce::Component
     {

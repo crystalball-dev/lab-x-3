@@ -133,6 +133,49 @@ def main():
         ok = st.get("exit") == 0 and res["non_finite"] == 0 and res["rms_db"] > -40.0 and res["peak_db"] <= 0.0
         record(f"specimen {choice:02d}", ok, {"status": st.get("specimen"), "rms": res["rms_db"], "peak": res["peak_db"]})
 
+    # 9. Browsing presets while a tail rings must not stretch or swell it.
+    ev = "48@0-1.9,55@0-1.9,60@0-1.9,63@0-1.9,43@2-3.9,50@2-3.9,58@2-3.9,62@2-3.9"
+    wav, st = render("preset_switch_tail", ["--preset", "3", "--events", ev, "--seconds", "14", "--tail-from", "4",
+                                            "--program-at", "2@5,11@6.5,1@8"], args.library)
+    rise = float(st.get("tail_rise_db", "-1000"))
+    record("preset switch during tail: no swell", st.get("exit") == 0 and rise <= 3.0, {"tail_rise_db": rise})
+
+    # 10. Pan switch: off gives identical channels with a dry reverb; on gives a stereo spread.
+    for pan, want_mono in (("0", True), ("1", False)):
+        wav, st = render(f"pan_{pan}", ["--notes", "48,55,60,67", "--seconds", "3", "--hold", "2.5"]
+                         + sets(CLEAN + ["osc_a_wave=0", "stereo_width=1", f"voice_pan={pan}"]), args.library)
+        res = analyze.analyse(str(wav), A())
+        ok = (res["max_side"] < 1e-6) if want_mono else (res["max_side"] > 0.01)
+        record(f"voice_pan={pan} {'mono' if want_mono else 'stereo'}", ok, {"max_side": res["max_side"]})
+
+    # 11. Reverb gain staging: fully wet never builds up above dry, and stays consistent across settings.
+    noise = CLEAN + ["osc_a_level=0", "noise_level=0.8", "noise_color=0.5"]
+    dry_wav, _ = render("verb_dry", ["--notes", "60", "--seconds", "5", "--hold", "5"] + sets(noise + ["noo_mix=0"]), args.library)
+    dry = analyze.analyse(str(dry_wav), A())["rms_db"]
+    diffs = []
+    for size, decay in ((0, 1), (0, 0), (0.5, 0.5), (1, 1), (1, 0)):
+        wav, st = render(f"verb_{size}_{decay}", ["--notes", "60", "--seconds", "5", "--hold", "5"]
+                         + sets(noise + ["noo_mix=1", f"noo_size={size}", f"noo_decay={decay}"]), args.library)
+        diff = analyze.analyse(str(wav), A())["rms_db"] - dry
+        diffs.append(diff)
+        record(f"reverb size {size} decay {decay}: wet between -10 and +1 dB of dry", -10.0 <= diff <= 1.0,
+               {"wet_minus_dry_db": round(diff, 1)})
+    record("reverb wet level spread across settings <= 8 dB", max(diffs) - min(diffs) <= 8.0,
+           {"spread_db": round(max(diffs) - min(diffs), 1)})
+
+    # 12. Randomised sessions with silent stretches: nothing may rise in silence or go non-finite.
+    for seed in (11, 12):
+        cmd = [str(HARNESS), "--fuzz", "--seconds", "120", "--seed", str(seed), "--vary-blocks"]
+        if args.library:
+            cmd += ["--library", args.library]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        stats = {k: (q if v.startswith('"') else v) for k, v, q in STAT.findall(proc.stdout)}
+        ok = (proc.returncode == 0 and stats.get("non_finite") == "0"
+              and stats.get("growth_fx_only") == "0" and stats.get("faults") == "0")
+        record(f"fuzz seed {seed}", ok, {k: stats.get(k) for k in ("events", "preset_changes", "growth_fx_only",
+                                                                    "worst_growth_fx_db", "non_finite", "faults",
+                                                                    "block_max_ms")})
+
     passed = sum(t["pass"] for t in report["tests"])
     report["summary"] = f"{passed}/{len(report['tests'])} passed"
     print(report["summary"])

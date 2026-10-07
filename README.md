@@ -15,7 +15,9 @@ LAB X-3 is a fan project. It is not affiliated with or endorsed by GSC Game Worl
 - **Filter and envelopes.** A driven state-variable filter with low-, band- and high-pass modes, plus amp and filter envelopes.
 - **PROGRAMMER.** A slow, irregular random walk that keeps rewriting pitch, filter, formant or grain position.
 - **SCRUB, NOOSPHERE and DARK.** Bit and sample-rate reduction, an 8-line feedback-delay reverb, and a DARK macro that pushes everything toward instability. The mod wheel adds to DARK.
-- **12 factory presets**, named after the lore.
+- **Panning.** Each note lands at a random position across the stereo field; WIDTH sets how far, and the PAN switch in MASTER turns it off so every note sits in the centre.
+- **12 factory presets**, named after the lore. Switching presets fades out, clears the reverb and starts the new sound from silence, so an old tail is never stretched into the new room.
+- **SYSTEM readout.** Active voices, incoming MIDI events per second, peak level and a fault counter. If notes sound while nothing should be playing, MIDI IN shows whether a controller is sending them.
 
 ## Sound sources
 

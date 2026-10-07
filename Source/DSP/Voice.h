@@ -36,6 +36,7 @@ namespace labx3::dsp
         float presenceLevel = 0.0f, presenceFreq = 3100.0f;
 
         float dark = 0.0f, glide = 0.0f, width = 0.6f, pitchBend = 0.0f;
+        bool panEnabled = true;
     };
 
     class Voice
@@ -84,6 +85,7 @@ namespace labx3::dsp
                 clickEnv = 0.0f;
                 gPrev = -1.0f;
                 freshStart = true;
+                grains.clear();
                 programmer.reset (sampleRate);
             }
 
@@ -234,10 +236,11 @@ namespace labx3::dsp
             gs.density = p.specDensity;
             gs.rate = std::exp2 (p.specTrack * (basePitch - 60.0f) * (1.0f / 12.0f));
 
-            // Equal-power pan
-            const float pan = std::clamp (panRandom * p.width, -1.0f, 1.0f);
-            const float panL = sin2pi ((pan + 1.0f) * 0.125f + 0.25f);
-            const float panR = sin2pi ((pan + 1.0f) * 0.125f);
+            // Equal-power pan: each note gets a random position scaled by WIDTH, or the centre when panning is off.
+            const float panTarget = p.panEnabled ? std::clamp (panRandom * p.width, -1.0f, 1.0f) : 0.0f;
+            panSmoothed = freshStart ? panTarget : panSmoothed + (panTarget - panSmoothed) * 0.05f;
+            const float panL = sin2pi ((panSmoothed + 1.0f) * 0.125f + 0.25f);
+            const float panR = sin2pi ((panSmoothed + 1.0f) * 0.125f);
             const float outGain = (0.35f + 0.65f * vel) * 0.7f;
 
             int clickCount = 0;
@@ -415,7 +418,7 @@ namespace labx3::dsp
         float noiseLp = 0.0f, noiseHp = 0.0f;
         float clickEnv = 0.0f, clickDecay = 0.99f;
         float presPhase1 = 0.0f, presPhase2 = 0.0f, vibPhase = 0.0f;
-        float panRandom = 0.0f, darkDetune = 0.0f, presenceDetune = 0.0f;
+        float panRandom = 0.0f, panSmoothed = 0.0f, darkDetune = 0.0f, presenceDetune = 0.0f;
         float gPrev = -1.0f;
         int clicks = 0;
     };

@@ -36,6 +36,9 @@ namespace labx3
         Status getStatus() const noexcept { return status.load(); }
         juce::String getStatusText() const;
 
+        // True once the latest request has been handled. Lock-free, safe on the audio thread.
+        bool isSettled() const noexcept;
+
         // Blocks until the latest request has been handled. Used by the render harness.
         bool waitUntilSettled (int timeoutMs) const;
 
@@ -62,6 +65,7 @@ namespace labx3
         std::atomic<dsp::SpecimenData*> active { nullptr };
         std::atomic<uint64_t> epoch { 0 };
         std::unique_ptr<dsp::SpecimenData> activeOwner;                                   // loader thread
+        uint64_t nextId = 1;                                                              // loader thread
         std::vector<std::pair<std::unique_ptr<dsp::SpecimenData>, uint64_t>> retired;      // loader thread
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpecimenLibrary)

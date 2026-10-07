@@ -75,6 +75,7 @@ def analyse(path, args):
     result["rms_db"] = round(db(math.sqrt((data ** 2).mean())), 2)
     result["dc"] = round(float(mono.mean()), 6)
     result["max_jump"] = round(float(np.abs(np.diff(data, axis=0)).max()), 4)
+    result["max_side"] = round(float(np.abs(data[:, 0] - data[:, -1]).max()), 6) if data.shape[1] > 1 else 0.0
     result["dominant_hz"] = round(dominant_frequency(mono, sr), 2)
     result["bands_db"] = band_split(mono, sr)
 

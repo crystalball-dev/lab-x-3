@@ -175,14 +175,19 @@ namespace labx3
         return statusText;
     }
 
+    bool SpecimenLibrary::isSettled() const noexcept
+    {
+        return handledChoice.load() == requested.load()
+            && handledGeneration.load() == generation.load()
+            && status.load() != Status::loading;
+    }
+
     bool SpecimenLibrary::waitUntilSettled (int timeoutMs) const
     {
         const auto deadline = juce::Time::getMillisecondCounter() + (juce::uint32) timeoutMs;
         while (juce::Time::getMillisecondCounter() < deadline)
         {
-            if (handledChoice.load() == requested.load()
-                 && handledGeneration.load() == generation.load()
-                 && status.load() != Status::loading)
+            if (isSettled())
                 return true;
             juce::Thread::sleep (10);
         }
@@ -285,6 +290,7 @@ namespace labx3
         data->storage.assign ((size_t) length + 2 * dsp::SpecimenData::guard, 0.0f);
         data->length = length;
         data->sampleRate = reader->sampleRate;
+        data->id = nextId++;
 
         float* d = data->storage.data() + dsp::SpecimenData::guard;
         for (int i = 0; i < length; ++i)

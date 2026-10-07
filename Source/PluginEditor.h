@@ -51,6 +51,7 @@ private:
 
     labx3::ui::LabeledKnob* knob (const char* id, const char* caption, bool accent = false);
     labx3::ui::LabeledChoice* choice (const char* id, const char* caption);
+    labx3::ui::LabeledToggle* toggle (const char* id, const char* caption, const char* onText, const char* offText);
     void layoutRow (std::vector<Panel>& row, juce::Rectangle<int> area, float unitWidth);
     void stepPreset (int delta);
     void chooseLibraryFolder();
@@ -61,6 +62,7 @@ private:
 
     std::vector<std::unique_ptr<labx3::ui::LabeledKnob>> knobs;
     std::vector<std::unique_ptr<labx3::ui::LabeledChoice>> choices;
+    std::vector<std::unique_ptr<labx3::ui::LabeledToggle>> toggles;
     std::vector<std::vector<Panel>> rows;
     std::vector<Panel> sidePanels;
 

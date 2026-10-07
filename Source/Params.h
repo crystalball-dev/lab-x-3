@@ -37,7 +37,7 @@ namespace labx3
             presenceLevel, presenceFreq,
             scrubBits, scrubRate,
             nooSize, nooDecay, nooMix,
-            dark, volume, voices, glide, width,
+            dark, volume, voices, glide, width, voicePan,
             count
         };
     }
@@ -111,6 +111,7 @@ namespace labx3
             { "voices",            "Voices",              Kind::integer, 1.0f,   8.0f,     8.0f,    0.0f,  Smooth::none,   "",    "" },
             { "glide",             "Glide",               Kind::real,    0.0f,   2.0f,     0.0f,    0.3f,  Smooth::none,   "s",   "" },
             { "stereo_width",      "Stereo Width",        Kind::real,    0.0f,   1.0f,     0.6f,    0.0f,  Smooth::linear, "%",   "" },
+            { "voice_pan",         "Voice Panning",       Kind::choice,  0.0f,   1.0f,     1.0f,    0.0f,  Smooth::none,   "",    "Centre|Random" },
         }};
         return specs;
     }

@@ -67,6 +67,7 @@ LabX3AudioProcessorEditor::LabX3AudioProcessorEditor (LabX3AudioProcessor& p)
                                     { knob ("osc_b_fm", "FM > A"), 1.0f }, { knob ("osc_b_level", "LEVEL"), 1.0f } } },
         { "SUB  +  NOISE",        { { knob ("sub_level", "SUB"), 1.0f }, { knob ("noise_level", "NOISE"), 1.0f },
                                     { knob ("noise_color", "COLOUR"), 1.0f } } },
+        { "GEIGER",               { { knob ("geiger_density", "DENSITY"), 1.0f }, { knob ("geiger_tone", "TONE"), 1.0f } } },
     });
 
     // Row 2: the lab's own sounds
@@ -95,11 +96,11 @@ LabX3AudioProcessorEditor::LabX3AudioProcessorEditor (LabX3AudioProcessor& p)
     rows.push_back ({
         { "PROGRAMMER",  { { knob ("prog_rate", "RATE"), 1.0f }, { knob ("prog_depth", "DEPTH"), 1.0f },
                            { choice ("prog_target", "TARGET"), 1.5f } } },
-        { "GEIGER",      { { knob ("geiger_density", "DENSITY"), 1.0f }, { knob ("geiger_tone", "TONE"), 1.0f } } },
         { "SCRUB",       { { knob ("scrub_bits", "BITS"), 1.0f }, { knob ("scrub_rate", "HOLD"), 1.0f } } },
         { "NOOSPHERE",   { { knob ("noo_size", "SIZE"), 1.0f }, { knob ("noo_decay", "DECAY"), 1.0f },
                            { knob ("noo_mix", "MIX"), 1.0f } } },
         { "MASTER",      { { knob ("voices", "VOICES"), 1.0f }, { knob ("glide", "GLIDE"), 1.0f },
+                           { toggle ("voice_pan", "PAN", "RANDOM", "CENTRE"), 1.2f },
                            { knob ("stereo_width", "WIDTH"), 1.0f }, { knob ("master_volume", "VOLUME"), 1.0f } } },
     });
 
@@ -158,6 +159,13 @@ LabeledKnob* LabX3AudioProcessorEditor::knob (const char* id, const char* captio
     knobs.push_back (std::make_unique<LabeledKnob> (audioProcessor.apvts, id, caption, accent));
     addAndMakeVisible (*knobs.back());
     return knobs.back().get();
+}
+
+LabeledToggle* LabX3AudioProcessorEditor::toggle (const char* id, const char* caption, const char* onText, const char* offText)
+{
+    toggles.push_back (std::make_unique<LabeledToggle> (audioProcessor.apvts, id, caption, onText, offText));
+    addAndMakeVisible (*toggles.back());
+    return toggles.back().get();
 }
 
 LabeledChoice* LabX3AudioProcessorEditor::choice (const char* id, const char* caption)
@@ -348,8 +356,9 @@ void LabX3AudioProcessorEditor::refreshFromProcessor()
     const auto root = lib.getLibraryRoot();
     juce::String text;
     text << "VOICES    " << m.activeVoices.load() << " / " << (int) std::lround (audioProcessor.apvts.getRawParameterValue ("voices")->load()) << "\n"
+         << "MIDI IN   " << juce::String (m.midiPerSecond.load(), 1) << " /s\n"
          << "PEAK      " << juce::String (m.peakDb.load(), 1) << " dBFS\n"
-         << "CLICKS    " << juce::String (m.clicksPerSecond.load(), 1) << " /s\n"
+         << "FAULTS    " << m.faults.load() << "\n"
          << "LIBRARY   " << (root.isDirectory() ? "LINKED" : "NOT FOUND") << "\n"
          << "PRESET    " << audioProcessor.getProgramName (program);
     systemLabel.setText (text, juce::dontSendNotification);

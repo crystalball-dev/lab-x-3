@@ -37,7 +37,9 @@ Global: voices summed ─> SCRUB ─> NOOSPHERE ─> master gain ─> DC blocker
 - **GEIGER**: Poisson-triggered noise bursts with a 0.35 ms decay through a band-pass at the tone frequency.
 - **FILTER**: topology-preserving state-variable filter, cutoff interpolated per sample, driven by a Padé tanh.
 - **PROGRAMMER**: per-voice random walk that hops to new targets at roughly the rate and glides toward them.
-- **NOOSPHERE**: 8 delay lines, Hadamard feedback matrix, one-pole damping and slow modulation of four lines.
+- **NOOSPHERE**: 8 delay lines, Hadamard feedback matrix, one-pole damping and slow modulation of four lines. Input is high-passed at 80 Hz so sub-bass never accumulates, and trimmed gently with the loop gain so small rooms with long decays stay at or below the dry level. On a preset change the network is flushed and snaps to the new size instead of stretching the old tail.
+- **Preset changes**: parameters are written once, straight to their final values; the output fades over 30 ms, voices and reverb are cleared, smoothers snap, then the output fades back in over 5 ms.
+- **Safety**: a non-finite sample anywhere in the output stage is silenced, voices and effects are reset, and the SYSTEM panel's fault counter increments. SPECIMEN source changes duck the grain layer until the new file is published, so grains are never cut mid-sound.
 - **DARK**: adds noise, drive, PROGRAMMER depth, Geiger density, grain spray, per-voice detune, lowers the cutoff by up to an octave and darkens the reverb.
 
 ## Verification

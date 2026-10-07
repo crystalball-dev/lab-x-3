@@ -34,7 +34,10 @@ void LabX3AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     scratchR.assign ((size_t) scratchSize, 0.0f);
 
     for (int n = 0; n <= controlBlock; ++n)
+    {
         smoothCoef[(size_t) n] = 1.0f - std::exp (-(float) std::max (n, 1) / (0.015f * sr));
+        duckCoef[(size_t) n] = 1.0f - std::exp (-(float) std::max (n, 1) / (0.006f * sr));
+    }
 
     for (int i = 0; i < P::count; ++i)
     {
@@ -55,8 +58,17 @@ void LabX3AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     modWheel = modWheelTarget = 0.0f;
     masterGain = dsp::dbToGain (raw[P::volume]->load());
     dcInL = dcInR = dcOutL = dcOutR = 0.0f;
-    clickAccumulator = clickSamples = 0;
+    clickAccumulator = clickSamples = midiAccumulator = 0;
     lastSpecimenChoice = -1;
+    specimenAwait = false;
+    specimenDuck = 1.0f;
+
+    programChangePending.store (false);
+    switchState = SwitchState::idle;
+    switchGain = 1.0f;
+    switchFadeLength = std::max (1, (int) (0.03 * currentSampleRate));
+    switchFadeRemaining = 0;
+    switchFadeInStep = 1.0f / (0.005f * sr);
 
     updateControl (controlBlock);
 }
@@ -92,12 +104,29 @@ void LabX3AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     buffer.clear();
 
     const auto* specimen = specimens.acquireForBlock();
+    const uint64_t specimenId = specimen != nullptr ? specimen->id : 0;
 
     const int choice = (int) std::lround (raw[P::specSource]->load());
     if (choice != lastSpecimenChoice)
     {
         specimens.requestChoice (choice);
+        if (lastSpecimenChoice >= 0)
+        {
+            specimenAwait = true;
+            specimenAwaitId = specimenId;
+        }
         lastSpecimenChoice = choice;
+    }
+    else if (specimenAwait && (specimenId != specimenAwaitId || specimens.isSettled()))
+    {
+        specimenAwait = false;
+    }
+
+    if (programChangePending.exchange (false) && switchState != SwitchState::fadingOut)
+    {
+        // Start from the current gain so rapid preset clicks never jump the level back up.
+        switchState = SwitchState::fadingOut;
+        switchFadeRemaining = (int) std::ceil (switchGain * (float) switchFadeLength);
     }
 
     // Voices beyond the current polyphony limit fade out.
@@ -148,6 +177,13 @@ void LabX3AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
 
         applyEffects (left, right, chunk);
 
+        if (switchState == SwitchState::fadingOut && switchFadeRemaining == 0)
+        {
+            flushForProgramChange();
+            switchState = SwitchState::fadingIn;
+            switchGain = 0.0f;
+        }
+
         if (numChannels >= 2)
         {
             buffer.copyFrom (0, processed, left, chunk);
@@ -192,7 +228,9 @@ void LabX3AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     if (clickSamples >= (int) (currentSampleRate * 0.25))
     {
         meters.clicksPerSecond.store ((float) clickAccumulator * (float) currentSampleRate / (float) clickSamples);
+        meters.midiPerSecond.store ((float) midiAccumulator * (float) currentSampleRate / (float) clickSamples);
         clickAccumulator = 0;
+        midiAccumulator = 0;
         clickSamples = 0;
     }
 
@@ -225,6 +263,7 @@ void LabX3AudioProcessor::updateControl (int n) noexcept
 
     bend += (bendTarget - bend) * std::min (1.0f, coef * 4.0f);
     modWheel += (modWheelTarget - modWheel) * coef;
+    specimenDuck += ((specimenAwait ? 0.0f : 1.0f) - specimenDuck) * duckCoef[(size_t) std::clamp (n, 0, controlBlock)];
 
     const auto& v = values;
     const float dark = std::clamp (v[P::dark] + modWheel, 0.0f, 1.0f);
@@ -249,7 +288,7 @@ void LabX3AudioProcessor::updateControl (int n) noexcept
     p.geigerDensity = v[P::geigerDensity] + dark * dark * 10.0f;
     p.geigerTone    = v[P::geigerTone];
 
-    p.specLevel    = v[P::specLevel];
+    p.specLevel    = v[P::specLevel] * specimenDuck;
     p.specPosition = v[P::specPosition];
     p.specSpray    = v[P::specSpray];
     p.specSize     = v[P::specSize] * 0.001f;
@@ -281,6 +320,7 @@ void LabX3AudioProcessor::updateControl (int n) noexcept
     p.glide     = v[P::glide];
     p.width     = v[P::width];
     p.pitchBend = bend;
+    p.panEnabled = v[P::voicePan] > 0.5f;
 }
 
 void LabX3AudioProcessor::applyEffects (float* left, float* right, int n) noexcept
@@ -293,25 +333,81 @@ void LabX3AudioProcessor::applyEffects (float* left, float* right, int n) noexce
     noosphere.process (left, right, n);
 
     const float gainTarget = dsp::dbToGain (values[P::volume]);
+    bool fault = false;
+
     for (int i = 0; i < n; ++i)
     {
         masterGain += (gainTarget - masterGain) * 0.002f;
         const float l = left[i] * masterGain;
         const float r = right[i] * masterGain;
 
-        const float dl = l - dcInL + 0.9995f * dcOutL;
-        const float dr = r - dcInR + 0.9995f * dcOutR;
-        dcInL = l; dcOutL = dl;
-        dcInR = r; dcOutR = dr;
+        float dl = l - dcInL + 0.9995f * dcOutL;
+        float dr = r - dcInR + 0.9995f * dcOutR;
 
-        left[i] = dsp::softClip (dl);
-        right[i] = dsp::softClip (dr);
+        if (! std::isfinite (dl) || ! std::isfinite (dr))
+        {
+            // Never pass garbage to the host: silence this sample and reset after the block.
+            fault = true;
+            dl = dr = 0.0f;
+            dcInL = dcInR = dcOutL = dcOutR = 0.0f;
+        }
+        else
+        {
+            dcInL = l; dcOutL = dl;
+            dcInR = r; dcOutR = dr;
+        }
+
+        if (switchState == SwitchState::fadingOut)
+        {
+            switchGain = (float) switchFadeRemaining / (float) switchFadeLength;
+            if (switchFadeRemaining > 0)
+                --switchFadeRemaining;
+        }
+        else if (switchState == SwitchState::fadingIn)
+        {
+            switchGain = std::min (1.0f, switchGain + switchFadeInStep);
+            if (switchGain >= 1.0f)
+                switchState = SwitchState::idle;
+        }
+
+        left[i] = dsp::softClip (dl) * switchGain;
+        right[i] = dsp::softClip (dr) * switchGain;
     }
+
+    if (fault)
+        recoverFromFault();
+}
+
+void LabX3AudioProcessor::flushForProgramChange() noexcept
+{
+    // The new preset starts from silence: no stretched reverb tail, no voices carrying old settings.
+    for (auto& v : voices)
+        v.kill();
+    monoCount = 0;
+    noosphere.flush();
+    scrub.reset();
+    dcInL = dcInR = dcOutL = dcOutR = 0.0f;
+    for (int i = 0; i < P::count; ++i)
+        smoothers[(size_t) i].reset (raw[(size_t) i]->load());
+    masterGain = dsp::dbToGain (raw[P::volume]->load());
+}
+
+void LabX3AudioProcessor::recoverFromFault() noexcept
+{
+    for (auto& v : voices)
+        v.kill();
+    monoCount = 0;
+    noosphere.reset();
+    scrub.reset();
+    dcInL = dcInR = dcOutL = dcOutR = 0.0f;
+    meters.faults.fetch_add (1);
 }
 
 //==============================================================================
 void LabX3AudioProcessor::handleMidi (const juce::MidiMessage& m) noexcept
 {
+    ++midiAccumulator;
+
     if (m.isNoteOn())
         noteOn (m.getNoteNumber(), m.getFloatVelocity());
     else if (m.isNoteOff())
@@ -529,19 +625,27 @@ void LabX3AudioProcessor::applyPreset (int index)
     if (! juce::isPositiveAndBelow (index, (int) presets.size()))
         return;
 
+    // Every parameter is set once, straight to its final value, so the audio thread never
+    // hears an intermediate all-defaults patch.
+    const auto& preset = presets[(size_t) index];
     for (const auto& spec : paramSpecs())
-        if (auto* param = apvts.getParameter (spec.id))
-            param->setValueNotifyingHost (param->getDefaultValue());
-
-    for (const auto& [id, value] : presets[(size_t) index].values)
     {
-        auto* param = apvts.getParameter (id);
-        jassert (param != nullptr);
-        if (param != nullptr)
-            param->setValueNotifyingHost (param->convertTo0to1 (value));
+        auto* param = apvts.getParameter (spec.id);
+        if (param == nullptr)
+            continue;
+
+        float target = param->convertFrom0to1 (param->getDefaultValue());
+        for (const auto& [id, value] : preset.values)
+            if (id == spec.id)
+            {
+                target = value;
+                break;
+            }
+        param->setValueNotifyingHost (param->convertTo0to1 (target));
     }
 
     currentProgram = index;
+    programChangePending.store (true);
 }
 
 //==============================================================================

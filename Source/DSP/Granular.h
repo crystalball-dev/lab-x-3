@@ -13,6 +13,7 @@ namespace labx3::dsp
         std::vector<float> storage;
         int length = 0;
         double sampleRate = 44100.0;
+        uint64_t id = 0;   // unique per load, so a reused memory address is never mistaken for the same source
 
         const float* data() const noexcept { return storage.data() + guard; }
     };
@@ -41,11 +42,12 @@ namespace labx3::dsp
 
         float process (const SpecimenData* sp, const Settings& s) noexcept
         {
-            if (sp != lastSpecimen)
+            const uint64_t id = sp != nullptr ? sp->id : 0;
+            if (id != lastId)
             {
                 for (auto& g : grains)
                     g.active = false;
-                lastSpecimen = sp;
+                lastId = id;
             }
 
             if (sp == nullptr || sp->length < 64)
@@ -130,7 +132,7 @@ namespace labx3::dsp
         }
 
         std::array<Grain, maxGrains> grains {};
-        const SpecimenData* lastSpecimen = nullptr;
+        uint64_t lastId = 0;
         Rng rng;
         float hostRate = 48000.0f, spawnPhase = 1.0f;
     };

@@ -133,9 +133,13 @@ namespace labx3::ui
         void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour&, bool highlighted, bool down) override
         {
             const auto r = button.getLocalBounds().toFloat().reduced (0.5f);
-            g.setColour (down ? Palette::dim.withAlpha (0.45f) : (highlighted ? Palette::faint.brighter (0.2f) : Palette::panel));
+            const bool latched = button.getClickingTogglesState() && button.getToggleState();
+            auto fill = down ? Palette::dim.withAlpha (0.45f) : (highlighted ? Palette::faint.brighter (0.2f) : Palette::panel);
+            if (latched)
+                fill = Palette::dim.withAlpha (highlighted ? 0.45f : 0.32f);
+            g.setColour (fill);
             g.fillRoundedRectangle (r, 3.0f);
-            g.setColour (highlighted ? Palette::dim : Palette::border);
+            g.setColour (latched ? Palette::phosphor.withAlpha (0.7f) : (highlighted ? Palette::dim : Palette::border));
             g.drawRoundedRectangle (r, 3.0f, 1.0f);
         }
 
