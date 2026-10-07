@@ -489,7 +489,8 @@ int main (int argc, char* argv[])
     }
     const double rms = std::sqrt (sumSquares / std::max (1, total * 2));
     const double realtimeFactor = (seconds * 1000.0) / std::max (0.001, elapsedMs);
-    const double cpuRealtimeFactor = (seconds * 1000.0) / std::max (0.001, cpuMs);
+    // Thread CPU time advances in steps of about 16 ms on Windows, so short renders get no CPU figure.
+    const bool cpuMeasurable = cpuMs >= 50.0;
 
     std::cout << "preset=\"" << proc->getProgramName (proc->getCurrentProgram()) << "\""
               << " specimen=\"" << proc->getSpecimenLibrary().getStatusText() << "\""
@@ -501,7 +502,7 @@ int main (int argc, char* argv[])
               << " render_ms=" << juce::String (elapsedMs, 1)
               << " realtime_x=" << juce::String (realtimeFactor, 1)
               << " cpu_ms=" << juce::String (cpuMs, 1)
-              << " cpu_realtime_x=" << juce::String (cpuRealtimeFactor, 1)
+              << (cpuMeasurable ? " cpu_realtime_x=" + juce::String ((seconds * 1000.0) / cpuMs, 1) : juce::String())
               << timer.summary();
 
     if (args.contains ("--tail-from"))

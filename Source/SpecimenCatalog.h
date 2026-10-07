@@ -10,7 +10,9 @@ namespace labx3
     // Two local libraries are supported:
     //  - flPack:    FL Studio's legacy "stalker sounds" pack (paths relative to that folder).
     //  - specimens: the user's STALKER SPECIMENS library, extracted from their own copies of the
-    //               games, laid out as <root>/<game>/sounds/<path as inside the game>.
+    //               games, laid out as <root>/<game>/sounds/<path as inside the game>. For
+    //               S.T.A.L.K.E.R. 2 that path is the Wwise asset path below Content/_STALKER2/Audio,
+    //               decoded to FLAC.
     //
     // Append new entries at the end only. Choice indices are saved inside host projects.
     // Music folders are deliberately absent: they hold commercial tracks by other artists.
@@ -28,6 +30,7 @@ namespace labx3
     inline constexpr const char* groupShadow   = "SHADOW OF CHORNOBYL";
     inline constexpr const char* groupClearSky = "CLEAR SKY";
     inline constexpr const char* groupPrypiat  = "CALL OF PRYPIAT";
+    inline constexpr const char* groupHeart    = "HEART OF CHORNOBYL";
 
     inline constexpr SpecimenEntry specimenCatalog[] =
     {
@@ -87,6 +90,40 @@ namespace labx3
         { "CoP / Electra Ball",          "call_of_prypiat/sounds/anomaly/gen_electra_ball_idle.ogg",         SpecimenSource::specimens, groupPrypiat },
         { "CoP / Teleport",              "call_of_prypiat/sounds/anomaly/teleport_work_1.ogg",               SpecimenSource::specimens, groupPrypiat },
         { "CoP / Buzz Anomaly",          "call_of_prypiat/sounds/anomaly/buzz_idle.ogg",                     SpecimenSource::specimens, groupPrypiat },
+
+        // STALKER SPECIMENS library, S.T.A.L.K.E.R. 2, v0.3.0
+        { "S2 / Lab Ambience",          "heart_of_chornobyl/sounds/Events/GSCAudioVolumes/AV_Labs/SFX_AV_Labs_Large_Loop_46.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Ward Laboratory",       "heart_of_chornobyl/sounds/Events/Cutscenes/SFX_E16_MQ03_F1_TheWard/SFX_E16_MQ03_F1_TheWard_Ambience_Laboratory.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / X-Lab Powered",         "heart_of_chornobyl/sounds/Events/DLC-1/GSCAudioVolumes/AV_XLabOn/SFX_XLabOn_Large_Loop_104.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / X-19 Alarm",            "heart_of_chornobyl/sounds/Events/DLC-1/Quests/MQ/MQ12/Alarm_X19_Enter_Lab_Loop/SFX_MQ12_Alarm_X19_Enter_Lab_Play.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / X3 TV Wall",            "heart_of_chornobyl/sounds/Events/Cutscenes/SFX_E11_MQ02_Strelok_X3/SFX_E11_MQ02_Strelok_X3_TVWall_Loop_L.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Electro",               "heart_of_chornobyl/sounds/Events/Anomalies/Electro/SFX_Anomaly_Electro_01.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Breach",                "heart_of_chornobyl/sounds/Events/Anomalies/Breach/SFX_Anomaly_Breach_04.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Bulb",                  "heart_of_chornobyl/sounds/Events/Anomalies/Bulb/SFX_Anomaly_Bulb_Idle_01.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Zenith",                "heart_of_chornobyl/sounds/Events/Anomalies/Visual_Anomalies/Zenith/SFX_Anomaly_Zenith_Loop_01.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Witch Stone",           "heart_of_chornobyl/sounds/Events/Anomalies/Visual_Anomalies/WitchStone/SFX_Anomaly_WitchStone_Loop_01.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Emission",              "heart_of_chornobyl/sounds/Events/Emission/SFX_Emission_Active_01.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Psy Noise",             "heart_of_chornobyl/sounds/Events/Effects/Psy/SFX_Psy_Noise_Play_25.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Psy Ringing",           "heart_of_chornobyl/sounds/Events/Effects/Psy/SFX_Psy_Noise_Play_41.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Phantom Spawn",         "heart_of_chornobyl/sounds/Events/Effects/Psy/SFX_Psy_PhantomSpawn_08.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Kaymanov Psy House",    "heart_of_chornobyl/sounds/Events/Ambient_Actors/Kaymanov_Psy_House/SFX_Kaymanov_Psy_House_03.flac",
+          SpecimenSource::specimens, groupHeart },
+        { "S2 / Controller Idle",       "heart_of_chornobyl/sounds/Events/S2_Live/Mutants/controller/Controller_Voice/Necrophage/Voice/SFX_Controller_Necro_Voice_Idle_01.flac",
+          SpecimenSource::specimens, groupHeart },
     };
 
     inline constexpr int specimenCatalogSize = (int) std::size (specimenCatalog);

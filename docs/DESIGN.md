@@ -24,6 +24,16 @@ Five presets use the extracted trilogy audio. Pitched sources were measured from
 | Lab X-8 Lament | CoP Lab X-8 crying | a wail spread over 528 to 578 Hz, centred near 547 Hz | TUNE -0.75 st centres it on C5, an octave over the played note |
 | Oasis Bloom | CoP Oasis noise | 3.2 s burst, bright only in its first fifth | grains held at 8 % with little spray; high-pass filter |
 
+### S.T.A.L.K.E.R. 2 presets (0.3.0)
+
+Sixteen S.T.A.L.K.E.R. 2 sounds joined the catalogue, chosen for steady energy across their length: lab and powered-lab ambiences, the X-19 alarm, the TV wall from the Strelok X3 cutscene, five anomalies, an emission, and four psy and controller sounds. Recordings that are mostly silence were left out. Three presets use them, matched the same way.
+
+| Preset | Source | Measured | Treatment |
+|---|---|---|---|
+| Zenith Gate | Zenith anomaly loop | a drifting inharmonic cluster, strongest at 358.5 Hz near 30 % of the file | TUNE +1.55 st puts that partial a fifth over the played note; long grains; the PROGRAMMER drifts through the cluster. 1 dB under the others so six-note chords peak like the rest |
+| Kaymanov's House | Kaymanov psy house loop | an inharmonic 160 to 330 Hz cluster under air centred near 4 kHz | keytrack 50 %; band-pass and whisper formants. A folded sine rather than feedback FM keeps peaks 3 dB lower at the same loudness |
+| X3 Broadcast | TV wall, Strelok X3 cutscene | static over a hum series on 48.5 Hz | keytrack off so the hum stays put; dense 60 ms grains; SCRUB at 9 bits |
+
 ## Signal flow
 
 Per voice, eight voices:

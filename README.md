@@ -16,7 +16,7 @@ LAB X-3 is a fan project. It is not affiliated with or endorsed by GSC Game Worl
 - **PROGRAMMER.** A slow, irregular random walk that keeps rewriting pitch, filter, formant or grain position.
 - **SCRUB, NOOSPHERE and DARK.** Bit and sample-rate reduction, an 8-line feedback-delay reverb, and a DARK macro that pushes everything toward instability. The mod wheel adds to DARK.
 - **Panning.** Each note lands at a random position across the stereo field; WIDTH sets how far, and the PAN switch in MASTER turns it off so every note sits in the centre.
-- **17 factory presets**, named after the lore; the last five are built on the STALKER SPECIMENS library. Switching presets fades out, clears the reverb and starts the new sound from silence, so an old tail is never stretched into the new room.
+- **20 factory presets**, named after the lore; the last eight are built on the STALKER SPECIMENS library. Switching presets fades out, clears the reverb and starts the new sound from silence, so an old tail is never stretched into the new room.
 - **SYSTEM readout.** Active voices, incoming MIDI events per second, peak level and a fault counter. If notes sound while nothing should be playing, MIDI IN shows whether a controller is sending them.
 
 ## Sound sources
@@ -24,13 +24,13 @@ LAB X-3 is a fan project. It is not affiliated with or endorsed by GSC Game Worl
 The SPECIMEN layer reads audio from folders on your machine. Neither this repository nor its builds include any game audio: `Source/SpecimenCatalog.h` lists relative file paths only. The SOURCE menu has one sub-menu per library:
 
 - **FL STUDIO PACK**: 18 sounds from the legacy `stalker sounds` pack inside an FL Studio install (`Data/Patches/Packs/Legacy/stalker sounds`), found automatically in the usual install folders.
-- **SHADOW OF CHORNOBYL, CLEAR SKY, CALL OF PRYPIAT**: 34 sounds from a STALKER SPECIMENS library, which holds audio you extract yourself from games you own. Lay it out as `<library>/<game>/sounds/<path inside the game>`, with the game folders `shadow_of_chornobyl`, `clear_sky` and `call_of_prypiat`. LAB X-3 looks for `\_AUDIO\STALKER SPECIMENS` on drives F, E, D, C, G and H.
+- **SHADOW OF CHORNOBYL, CLEAR SKY, CALL OF PRYPIAT, HEART OF CHORNOBYL**: 50 sounds from a STALKER SPECIMENS library, which holds audio you extract yourself from games you own. Lay it out as `<library>/<game>/sounds/<path inside the game>`, with the game folders `shadow_of_chornobyl`, `clear_sky`, `call_of_prypiat` and `heart_of_chornobyl`. For S.T.A.L.K.E.R. 2 the files are its Wwise media decoded to FLAC, named by asset path: `heart_of_chornobyl/sounds/<path below Content/_STALKER2/Audio, without WwiseAudio/>.flac`. LAB X-3 looks for `\_AUDIO\STALKER SPECIMENS` on drives F, E, D, C, G and H.
 
 Use **LIBRARY** to point the plugin at either folder, or **LOAD FILE** to use any WAV, OGG, FLAC or AIFF file. A missing library only silences the SPECIMEN layer, and the status line names the library that is missing.
 
 Many game recordings are pitched: mains hums, the X-16 emitter, the crying in Lab X-8. With KEYTRACK at 100 % a file plays at its original pitch on C4; **TUNE** shifts the grains by up to two octaves either way so they agree with the oscillators.
 
-Projects saved with 0.1.x keep their selected source. Automation recorded on SOURCE in 0.1.x now points at different entries, because the list is longer.
+Projects keep their selected source from version to version. Automation recorded on SOURCE does not: hosts store it as a position along the list, so it points at different entries once the list grows.
 
 ## Building on Windows
 

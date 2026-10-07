@@ -289,6 +289,59 @@ namespace labx3
                 { "noo_size", 0.9f }, { "noo_decay", 0.8f }, { "noo_mix", 0.5f },
                 { "dark", 0.1f }, { "master_volume", -5.7f }, { "stereo_width", 0.9f } } });
 
+            // S.T.A.L.K.E.R. 2 recordings from the same library (0.3.0).
+
+            // 18. The Zenith anomaly's drifting cluster, its strongest partial tuned a fifth over the played note.
+            p.push_back ({ "Zenith Gate", {
+                { "osc_a_wave", sine }, { "osc_a_shape", 0.2f }, { "osc_a_level", 0.45f },
+                { "osc_b_wave", bSine }, { "osc_b_ratio", 1.5f }, { "osc_b_fm", 0.05f }, { "osc_b_level", 0.2f },
+                { "sub_level", 0.25f }, { "noise_level", 0.02f }, { "noise_color", 0.4f },
+                { "specimen_source", spec ("S2 / Zenith") }, { "specimen_level", 0.6f }, { "specimen_position", 0.3f },
+                { "specimen_spray", 0.15f }, { "specimen_size", 520.0f }, { "specimen_density", 10.0f }, { "specimen_track", 1.0f },
+                { "specimen_tune", 1.55f },
+                { "filter_type", lowpass }, { "filter_cutoff", 2600.0f }, { "filter_res", 0.2f }, { "filter_drive", 2.0f },
+                { "filter_env", 0.1f }, { "filter_keytrack", 0.4f },
+                { "env1_attack", 2.2f }, { "env1_decay", 3.0f }, { "env1_sustain", 0.9f }, { "env1_release", 6.0f },
+                { "env2_attack", 3.0f }, { "env2_decay", 3.0f }, { "env2_sustain", 0.6f }, { "env2_release", 5.0f },
+                { "prog_rate", 0.05f }, { "prog_depth", 0.3f }, { "prog_target", toSpecimen },
+                { "whisper_level", 0.05f }, { "whisper_formant", 180.0f }, { "whisper_keytrack", 0.3f },
+                { "noo_size", 0.95f }, { "noo_decay", 0.8f }, { "noo_mix", 0.5f },
+                { "dark", 0.2f }, { "master_volume", -7.6f }, { "stereo_width", 0.92f } } });
+
+            // 19. Kaymanov's psy house: whispering formants and a folded sine through a band-pass, over the house's own air.
+            p.push_back ({ "Kaymanov's House", {
+                { "osc_a_wave", sine }, { "osc_a_shape", 0.5f }, { "osc_a_level", 0.8f },
+                { "osc_b_wave", bTriangle }, { "osc_b_ratio", 0.5f }, { "osc_b_fm", 0.1f }, { "osc_b_level", 0.15f },
+                { "sub_level", 0.2f }, { "noise_level", 0.03f }, { "noise_color", 0.5f },
+                { "specimen_source", spec ("S2 / Kaymanov Psy House") }, { "specimen_level", 0.9f }, { "specimen_position", 0.4f },
+                { "specimen_spray", 0.6f }, { "specimen_size", 300.0f }, { "specimen_density", 18.0f }, { "specimen_track", 0.5f },
+                { "filter_type", bandpass }, { "filter_cutoff", 1300.0f }, { "filter_res", 0.25f }, { "filter_drive", 5.0f },
+                { "filter_env", 0.2f }, { "filter_keytrack", 0.5f },
+                { "env1_attack", 1.0f }, { "env1_decay", 2.0f }, { "env1_sustain", 0.85f }, { "env1_release", 4.0f },
+                { "env2_attack", 1.5f }, { "env2_decay", 2.5f }, { "env2_sustain", 0.5f }, { "env2_release", 3.5f },
+                { "prog_rate", 0.25f }, { "prog_depth", 0.5f }, { "prog_target", toFormant },
+                { "whisper_level", 0.25f }, { "whisper_formant", 140.0f }, { "whisper_keytrack", 0.5f },
+                { "presence_level", 0.06f },
+                { "noo_size", 0.8f }, { "noo_decay", 0.7f }, { "noo_mix", 0.4f },
+                { "dark", 0.35f }, { "master_volume", -7.1f }, { "stereo_width", 0.8f } } });
+
+            // 20. The TV wall from the X3 cutscene, chopped into short grains over a crushed square carrier.
+            p.push_back ({ "X3 Broadcast", {
+                { "osc_a_wave", square }, { "osc_a_shape", 0.5f }, { "osc_a_level", 0.35f },
+                { "osc_b_wave", bSine }, { "osc_b_ratio", 2.0f }, { "osc_b_fm", 0.15f }, { "osc_b_level", 0.15f },
+                { "sub_level", 0.3f }, { "noise_level", 0.06f }, { "noise_color", 0.7f },
+                { "geiger_density", 1.0f },
+                { "specimen_source", spec ("S2 / X3 TV Wall") }, { "specimen_level", 0.7f }, { "specimen_position", 0.5f },
+                { "specimen_spray", 0.8f }, { "specimen_size", 60.0f }, { "specimen_density", 45.0f }, { "specimen_track", 0.0f },
+                { "filter_type", bandpass }, { "filter_cutoff", 1800.0f }, { "filter_res", 0.35f }, { "filter_drive", 10.0f },
+                { "filter_env", 0.3f }, { "filter_keytrack", 0.6f },
+                { "env1_attack", 0.3f }, { "env1_decay", 1.0f }, { "env1_sustain", 0.8f }, { "env1_release", 2.0f },
+                { "env2_attack", 0.2f }, { "env2_decay", 1.2f }, { "env2_sustain", 0.4f }, { "env2_release", 1.5f },
+                { "prog_rate", 1.2f }, { "prog_depth", 0.35f }, { "prog_target", toFilter },
+                { "scrub_bits", 9.0f }, { "scrub_rate", 2.0f },
+                { "noo_size", 0.4f }, { "noo_decay", 0.4f }, { "noo_mix", 0.2f },
+                { "dark", 0.3f }, { "master_volume", -6.1f }, { "stereo_width", 0.5f } } });
+
             return p;
         }
     }
