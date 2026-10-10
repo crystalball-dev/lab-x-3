@@ -18,6 +18,7 @@ LAB X-3 is a fan project. It is not affiliated with or endorsed by GSC Game Worl
 - **Panning.** Each note lands at a random position across the stereo field; WIDTH sets how far, and the PAN switch in MASTER turns it off so every note sits in the centre.
 - **20 factory presets**, named after the lore; the last eight are built on the STALKER SPECIMENS library. Switching presets fades out, clears the reverb and starts the new sound from silence, so an old tail is never stretched into the new room.
 - **SYSTEM readout.** Active voices, incoming MIDI events per second, peak level and a fault counter. If notes sound while nothing should be playing, MIDI IN shows whether a controller is sending them.
+- **Runaway guard.** A non-finite sample, or any stage above +48 dBFS, silences the block and restarts every stage; FAULTS counts it. Each fault, and any tail that climbs 12 dB over its level once the keys are up, is written with the parameters at the time to `%APPDATA%\OPERATION FAIRWAY, LLC\LAB X-3 faults.log`.
 
 ## Sound sources
 

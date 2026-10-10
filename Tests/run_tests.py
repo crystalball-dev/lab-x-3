@@ -107,7 +107,8 @@ def main():
         notes = ["--events", "53@0-1.8,60@1.6-4"] if mono else ["--notes", "48,55,60"]
         wav, st = render(f"preset_{i:02d}", ["--preset", str(i), "--seconds", "7", "--hold", "4"] + notes, libs)
         res = analyze.analyse(str(wav), A())
-        ok = st.get("exit") == 0 and res["non_finite"] == 0 and res["peak_db"] <= 0.0 and res["rms_db"] > -45.0
+        ok = (st.get("exit") == 0 and res["non_finite"] == 0 and res["peak_db"] <= 0.0 and res["rms_db"] > -45.0
+              and st.get("faults") == "0")
         record(f"preset {i:02d} {name}", ok, {"peak": res["peak_db"], "rms": res["rms_db"], "specimen": st.get("specimen"),
                                               "bands": res["bands_db"], "rt_x": st.get("realtime_x")})
 
@@ -196,6 +197,46 @@ def main():
                {"wet_minus_dry_db": round(diff, 1)})
     record("reverb wet level spread across settings <= 8 dB", max(diffs) - min(diffs) <= 8.0,
            {"spread_db": round(max(diffs) - min(diffs), 1)})
+
+    # 12. NOOSPHERE's delay read stays inside its buffer at every boundary (up to 0.3.0 it could read one
+    #     sample past the end, which put heap garbage into the reverb: the "blowout" after pausing).
+    proc = subprocess.run([str(HARNESS), "--selftest-delay"], capture_output=True, text=True)
+    stats = {k: (q if v.startswith('"') else v) for k, v, q in STAT.findall(proc.stdout)}
+    record("noosphere delay read: no past-the-end reads, matches reference",
+           proc.returncode == 0 and stats.get("past_end_fixed") == "0" and int(stats.get("past_end_legacy", "0")) > 0,
+           {k: stats.get(k) for k in ("reads", "past_end_fixed", "past_end_legacy", "worst_error")})
+
+    # 12a. Song, then pause: every preset's tail decays once the notes stop, and no guard trips on its own.
+    chords = [(57, 60, 64, 45), (53, 57, 60, 41), (48, 52, 55, 36), (55, 59, 62, 43)]
+    song = ",".join(f"{n}@{2 * k:.2f}-{2 * k + 2.05:.2f}" for k in range(8) for n in chords[k % 4])
+    for i, name in enumerate(presets):
+        wav, st = render(f"pause_{i:02d}", ["--preset", str(i), "--events", song, "--seconds", "28", "--tail-from", "16.05",
+                                            "--block", "64"], libs)
+        rise = float(st.get("tail_rise_db", "-1000"))
+        record(f"pause {i:02d} {name}: tail decays", st.get("exit") == 0 and rise <= 6.0 and st.get("faults") == "0",
+               {"tail_rise_db": rise, "faults": st.get("faults")})
+
+    # 12b. Runaway guard: an injected spike is silenced and logged; an injected growing tail is cut and logged.
+    guard_log = OUT / "guard_faults.log"
+    clean_wav, clean = render("guard_clean", ["--preset", "2", "--notes", "48,55,60", "--seconds", "3", "--hold", "2"], libs)
+    for stage in ("voices", "scrub", "noosphere"):
+        guard_log.unlink(missing_ok=True)
+        wav, st = render(f"guard_spike_{stage}", ["--preset", "2", "--notes", "48,55,60", "--seconds", "3", "--hold", "2",
+                                                  "--inject", f"{stage}@1.0", "--fault-log", str(guard_log)], libs)
+        text = guard_log.read_text() if guard_log.exists() else ""
+        spike_peak = analyze.analyse(str(wav), A())["peak_db"]
+        clean_peak = analyze.analyse(str(clean_wav), A())["peak_db"]
+        ok = (st.get("faults", "0") != "0" and f"FAULT  {stage.upper()}" in text and spike_peak <= clean_peak + 0.5)
+        record(f"guard: spike after {stage} silenced and logged", ok,
+               {"faults": st.get("faults"), "peak": spike_peak, "clean_peak": clean_peak})
+    guard_log.unlink(missing_ok=True)
+    wav, st = render("guard_tail", ["--preset", "2", "--notes", "48,55,60", "--seconds", "9", "--hold", "2", "--tail-from", "5.0",
+                                    "--inject", "noosphere@5.0", "--inject-mode", "tail", "--fault-log", str(guard_log)], libs)
+    text = guard_log.read_text() if guard_log.exists() else ""
+    tail_peak = float(st.get("tail_peak_db", "0"))
+    record("guard: a tail rising after the notes stop is logged, sound untouched",
+           st.get("faults") == "0" and "RISE   NOOSPHERE" in text,
+           {"faults": st.get("faults"), "tail_peak_db": tail_peak})
 
     # 12. Randomised sessions with silent stretches: nothing may rise in silence or go non-finite.
     for seed in (11, 12):

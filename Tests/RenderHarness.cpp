@@ -5,6 +5,11 @@
 //               [--library <dir>] [--specimens <dir>] [--userfile <file>] [--set id=value ...]
 //               [--program-at "4@2.5,7@5"] [--tail-from <seconds>]
 //               [--png <file.png>] [--roundtrip] [--list] [--list-specimens]
+//               [--inject <stage>@<seconds>] [--inject-mode spike|tail] [--fault-log <file>]
+//
+//   LabX3Render --selftest-delay
+//       Compares NOOSPHERE's delay read with a double-precision reference across every boundary case,
+//       with a marker one past the end of the buffer that no read may return.
 //
 //   LabX3Render --fuzz --seconds 300 [--seed 1] [--vary-blocks] [--out <file.wav>]
 //       Random session: notes, presets, parameter moves, mod wheel, bend, sustain. Every 30 s
@@ -325,12 +330,91 @@ namespace
                   << " non_finite=" << nonFinite
                   << " peak_db=" << juce::String (juce::Decibels::gainToDecibels (peak, -120.0f), 2)
                   << " faults=" << proc.meters.faults.load()
+                  << " fault_log=" << proc.flushFaultLog()
                   << timer.summary() << std::endl;
 
         if (full.getNumSamples() > 0 && ! writeWav (outFile, full, sampleRate))
             std::cerr << "could not write " << outFile.getFullPathName() << std::endl;
 
         return (nonFinite == 0 && growthFx == 0) ? 0 : 1;
+    }
+}
+
+namespace
+{
+    // The read NOOSPHERE used up to 0.3.0, kept here to show the self-test catches its past-the-end read.
+    float legacyRead (const float* buffer, int len, int write, float delay)
+    {
+        delay = std::clamp (delay, 1.0f, (float) (len - 3));
+        float pos = (float) write - delay;
+        if (pos < 0.0f)
+            pos += (float) len;
+        const int i0 = (int) pos;
+        const int i1 = i0 + 1 < len ? i0 + 1 : 0;
+        const float frac = pos - (float) i0;
+        return buffer[i0] + frac * (buffer[i1] - buffer[i0]);
+    }
+
+    int selfTestDelay()
+    {
+        constexpr float marker = 1.0e30f;
+        juce::Random rnd (7);
+        int reads = 0, fixedHits = 0, legacyHits = 0;
+        double worst = 0.0;
+
+        for (const int len : { 9057, 9856, 10000, 4096 + 16 })
+        {
+            std::vector<float> buffer ((size_t) len + 1);
+            for (int i = 0; i < len; ++i)
+                buffer[(size_t) i] = rnd.nextFloat() * 2.0f - 1.0f;
+            buffer[(size_t) len] = marker;   // one past the end
+
+            auto check = [&] (int write, float delay)
+            {
+                const double d = std::clamp ((double) delay, 1.0, (double) (len - 3));
+                const int whole = (int) std::floor (d);
+                const double f = d - whole;
+                const int a = ((write - whole) % len + len) % len;
+                const int b = (a - 1 + len) % len;
+                const double reference = (1.0 - f) * buffer[(size_t) a] + f * buffer[(size_t) b];
+
+                const float got = labx3::dsp::Noosphere::readDelay (buffer.data(), len, write, delay);
+                if (std::abs (got) > 1.0e20f)
+                    ++fixedHits;
+                else
+                    worst = std::max (worst, std::abs ((double) got - reference));
+                if (std::abs (legacyRead (buffer.data(), len, write, delay)) > 1.0e20f)
+                    ++legacyHits;
+                ++reads;
+            };
+
+            // Every boundary: the write pointer just at, before and after the delay distance, with
+            // fractions from exact to one float step either side of a whole sample.
+            for (int whole : { 1, 2, 3, 100, 3564, 6396, len / 2, len - 4, len - 3 })
+                for (int dw = -2; dw <= 2; ++dw)
+                {
+                    const int write = ((whole + dw) % len + len) % len;
+                    for (const float base : { (float) whole, (float) whole + 0.5f, (float) whole + 1.0f })
+                    {
+                        float v = base;
+                        for (int step = 0; step < 6; ++step)
+                        {
+                            check (write, v);
+                            check (write, std::nextafter (base, 0.0f) - (float) step * std::numeric_limits<float>::epsilon() * base);
+                            v = std::nextafter (v, 1.0e9f);
+                        }
+                        for (const float off : { 1.0e-7f, 2.0e-4f, 4.9e-4f, 5.0e-4f, 0.25f, 0.999f })
+                            check (write, base + off);
+                    }
+                }
+
+            for (int i = 0; i < 200000; ++i)
+                check (rnd.nextInt (len), 1.0f + rnd.nextFloat() * (float) (len - 4));
+        }
+
+        std::cout << "selftest-delay reads=" << reads << " past_end_fixed=" << fixedHits << " past_end_legacy=" << legacyHits
+                  << " worst_error=" << juce::String (worst, 9) << std::endl;
+        return (fixedHits == 0 && worst < 1.0e-5) ? 0 : 1;
     }
 }
 
@@ -341,6 +425,9 @@ int main (int argc, char* argv[])
     juce::StringArray args;
     for (int i = 1; i < argc; ++i)
         args.add (juce::String::fromUTF8 (argv[i]));
+
+    if (args.contains ("--selftest-delay"))
+        return selfTestDelay();
 
     if (args.contains ("--list"))
     {
@@ -365,6 +452,21 @@ int main (int argc, char* argv[])
     const juce::File outFile (option (args, "--out"));
 
     auto proc = std::make_unique<LabX3AudioProcessor>();
+
+    // Faults go to a scratch log unless a file is named, so test runs never write into the user's log.
+    proc->setFaultLogFile (args.contains ("--fault-log")
+                               ? juce::File (option (args, "--fault-log"))
+                               : juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("LabX3Render faults.log"));
+    if (args.contains ("--inject"))
+    {
+        const auto spec = option (args, "--inject");   // e.g. "noosphere@5.0"
+        const auto stage = spec.upToFirstOccurrenceOf ("@", false, false).toUpperCase();
+        for (int s = 0; s < LabX3AudioProcessor::numStages; ++s)
+            if (stage == LabX3AudioProcessor::stageName (s))
+                proc->injectStage = s;
+        proc->injectAtSample = (int64_t) (spec.fromFirstOccurrenceOf ("@", false, false).getDoubleValue() * sampleRate);
+        proc->injectMode = option (args, "--inject-mode", "spike") == "tail" ? 1 : 0;
+    }
 
     if (args.contains ("--library"))
         proc->getSpecimenLibrary().setLibraryRoot (juce::File (option (args, "--library")), false);
@@ -503,6 +605,8 @@ int main (int argc, char* argv[])
               << " realtime_x=" << juce::String (realtimeFactor, 1)
               << " cpu_ms=" << juce::String (cpuMs, 1)
               << (cpuMeasurable ? " cpu_realtime_x=" + juce::String ((seconds * 1000.0) / cpuMs, 1) : juce::String())
+              << " faults=" << proc->meters.faults.load()
+              << " fault_log=" << proc->flushFaultLog()
               << timer.summary();
 
     if (args.contains ("--tail-from"))

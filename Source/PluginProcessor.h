@@ -12,7 +12,8 @@
 #include "DSP/Scrub.h"
 #include "DSP/Voice.h"
 
-class LabX3AudioProcessor final : public juce::AudioProcessor
+class LabX3AudioProcessor final : public juce::AudioProcessor,
+                                   private juce::Timer
 {
 public:
     LabX3AudioProcessor();
@@ -56,7 +57,22 @@ public:
     static constexpr int scopeSize = 2048;
     void copyScope (float* dest, int numSamples) const noexcept;
 
+    // Runaway guard log: one line per fault, with the parameters at the time. Written on the message
+    // thread to <user app data>\OPERATION FAIRWAY, LLC\LAB X-3 faults.log.
+    enum Stage { stageVoices, stageScrub, stageNoosphere, stageOutput, numStages };
+    static const char* stageName (int stage) noexcept;
+    juce::File getFaultLogFile() const;
+    void setFaultLogFile (const juce::File& file) { faultLogOverride = file; }
+    int flushFaultLog();   // returns the number of entries written
+
     juce::AudioProcessorValueTreeState apvts;
+
+   #if LABX3_HARNESS
+    // Test hooks: from this sample on, the stage's output gets a 1e6 spike (mode 0) or a tone that grows
+    // 6 dB every 100 ms (mode 1, stopped by the first fault it causes).
+    int injectStage = -1, injectMode = 0;
+    int64_t injectAtSample = -1;
+   #endif
 
 private:
     struct Smoother
@@ -79,6 +95,14 @@ private:
     void applyEffects (float* left, float* right, int n) noexcept;
     void flushForProgramChange() noexcept;
     void recoverFromFault() noexcept;
+
+    bool guardStage (int stage, float* left, float* right, int n) noexcept;
+    void watchTail (const float* left, const float* right, int n) noexcept;
+    void noteFault (int stage, int kind, float level, float rise) noexcept;
+    void timerCallback() override { flushFaultLog(); }
+   #if LABX3_HARNESS
+    void injectTestSignal (int stage, float* left, float* right, int n) noexcept;
+   #endif
 
     void handleMidi (const juce::MidiMessage& m) noexcept;
     void noteOn (int note, float velocity) noexcept;
@@ -138,6 +162,37 @@ private:
     int clickAccumulator = 0, clickSamples = 0, midiAccumulator = 0;
 
     int currentProgram = 0;
+
+    // Runaway guard. No stage reaches +48 dBFS legitimately (one voice at full resonance stays near +30):
+    // above that, or non-finite, the block is silenced and everything restarts. Once no key has been held
+    // for a second, a tail should only fade; one that climbs 12 dB over its level when the keys went up
+    // (above -40 dBFS, for 0.3 s) is logged but left alone, since a sweeping filter can do that legitimately.
+    static constexpr float stageLimit = 256.0f;
+    static constexpr float riseLimitDb = 12.0f, riseFloorDb = -40.0f;
+    enum FaultKind { faultRunaway, faultNonFinite, riseNotice };
+    struct FaultEntry
+    {
+        int stage = 0, kind = 0, activeVoices = 0, heldKeys = 0;
+        float level = 0.0f, rise = 0.0f;
+        double seconds = 0.0, sinceNote = 0.0, bpm = 0.0;
+        bool playing = false;
+    };
+    std::array<FaultEntry, 64> faultRing {};
+    std::atomic<int> faultWrite { 0 };
+    int faultRead = 0;
+    bool faultLogHeaderWritten = false;
+    juce::File faultLogOverride;
+    int64_t samplesRendered = 0, lastNoteEventSample = 0, lastFaultSample = std::numeric_limits<int64_t>::min() / 2;
+    int preparedBlockSize = 0;
+    bool hostPlaying = false;
+    double hostBpm = 0.0;
+
+    // Tail watch: 100 ms RMS windows after the reverb, before the master volume.
+    bool keysHeld = false;
+    double tailWindowSum = 0.0;
+    int tailWindowCount = 0, keysUpWindows = 0, riseWindows = 0;
+    std::array<float, 3> recentDb { -240.0f, -240.0f, -240.0f };
+    float releaseDb = -240.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LabX3AudioProcessor)
 };

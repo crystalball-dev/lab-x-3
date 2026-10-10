@@ -19,15 +19,25 @@ LabX3AudioProcessor::LabX3AudioProcessor()
 
     applyPreset (0);
     specimens.requestChoice ((int) std::lround (raw[P::specSource]->load()));
+    startTimer (500);
 }
 
-LabX3AudioProcessor::~LabX3AudioProcessor() = default;
+LabX3AudioProcessor::~LabX3AudioProcessor()
+{
+    stopTimer();
+    flushFaultLog();
+}
 
 //==============================================================================
 void LabX3AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate > 0.0 ? sampleRate : 48000.0;
     const auto sr = (float) currentSampleRate;
+    preparedBlockSize = samplesPerBlock;
+    tailWindowSum = 0.0;
+    tailWindowCount = keysUpWindows = riseWindows = 0;
+    recentDb.fill (-240.0f);
+    releaseDb = -240.0f;
 
     scratchSize = std::max (samplesPerBlock, 4096);
     scratchL.assign ((size_t) scratchSize, 0.0f);
@@ -103,6 +113,14 @@ void LabX3AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     const int numChannels = buffer.getNumChannels();
     buffer.clear();
 
+    if (auto* host = getPlayHead())
+        if (const auto position = host->getPosition())
+        {
+            hostPlaying = position->getIsPlaying();
+            if (const auto bpm = position->getBpm())
+                hostBpm = *bpm;
+        }
+
     const auto* specimen = specimens.acquireForBlock();
     const uint64_t specimenId = specimen != nullptr ? specimen->id : 0;
 
@@ -175,7 +193,13 @@ void LabX3AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
             pos += n;
         }
 
+        keysHeld = false;
+        for (const auto& v : voices)
+            keysHeld = keysHeld || (v.isActive() && (v.isKeyDown() || v.isSustained()));
+
+        guardStage (stageVoices, left, right, chunk);
         applyEffects (left, right, chunk);
+        samplesRendered += chunk;
 
         if (switchState == SwitchState::fadingOut && switchFadeRemaining == 0)
         {
@@ -327,11 +351,14 @@ void LabX3AudioProcessor::updateControl (int n) noexcept
 void LabX3AudioProcessor::applyEffects (float* left, float* right, int n) noexcept
 {
     scrub.process (left, right, n, raw[P::scrubBits]->load(), raw[P::scrubRate]->load());
+    guardStage (stageScrub, left, right, n);
 
     noosphere.setParameters (raw[P::nooSize]->load(), raw[P::nooDecay]->load(),
                              0.25f + darkEffective * 0.6f,
                              std::min (1.0f, raw[P::nooMix]->load() + darkEffective * 0.1f));
     noosphere.process (left, right, n);
+    if (! guardStage (stageNoosphere, left, right, n))
+        watchTail (left, right, n);
 
     const float gainTarget = dsp::dbToGain (values[P::volume]);
     bool fault = false;
@@ -376,7 +403,202 @@ void LabX3AudioProcessor::applyEffects (float* left, float* right, int n) noexce
     }
 
     if (fault)
+    {
+        noteFault (stageOutput, faultNonFinite, 0.0f, 0.0f);
         recoverFromFault();
+    }
+}
+
+bool LabX3AudioProcessor::guardStage (int stage, float* left, float* right, int n) noexcept
+{
+   #if LABX3_HARNESS
+    injectTestSignal (stage, left, right, n);
+   #endif
+
+    float peak = 0.0f;
+    bool finite = true;
+    for (int i = 0; i < n; ++i)
+    {
+        finite = finite && std::isfinite (left[i]) && std::isfinite (right[i]);
+        peak = std::max (peak, std::max (std::abs (left[i]), std::abs (right[i])));
+    }
+    if (finite && peak <= stageLimit)
+        return false;
+
+    // Silence the block and start every stage again from zero.
+    noteFault (stage, finite ? faultRunaway : faultNonFinite, peak, 0.0f);
+    std::fill_n (left, n, 0.0f);
+    std::fill_n (right, n, 0.0f);
+    recoverFromFault();
+    return true;
+}
+
+void LabX3AudioProcessor::watchTail (const float* left, const float* right, int n) noexcept
+{
+    const int window = std::max (1, (int) (0.1 * currentSampleRate));
+    for (int i = 0; i < n; ++i)
+    {
+        tailWindowSum += (double) left[i] * left[i] + (double) right[i] * right[i];
+        if (++tailWindowCount < window)
+            continue;
+
+        const float rmsDb = juce::Decibels::gainToDecibels ((float) std::sqrt (tailWindowSum / (2.0 * window)), -240.0f);
+        tailWindowSum = 0.0;
+        tailWindowCount = 0;
+
+        if (keysHeld)
+        {
+            // The level as the keys go up: the loudest of the latest three windows.
+            recentDb = { rmsDb, recentDb[0], recentDb[1] };
+            releaseDb = std::max ({ recentDb[0], recentDb[1], recentDb[2] });
+            keysUpWindows = riseWindows = 0;
+            continue;
+        }
+
+        if (++keysUpWindows <= 10)   // the first second: releases and reverb still settle
+            continue;
+
+        if (rmsDb > std::max (releaseDb + riseLimitDb, riseFloorDb))
+        {
+            if (++riseWindows == 3)
+                noteFault (stageNoosphere, riseNotice, rmsDb, rmsDb - releaseDb);
+        }
+        else
+        {
+            riseWindows = 0;
+        }
+    }
+}
+
+void LabX3AudioProcessor::noteFault (int stage, int kind, float level, float rise) noexcept
+{
+   #if LABX3_HARNESS
+    if (injectMode == 1)
+        injectStage = -1;   // the injected runaway lived in the state that was just cleared
+   #endif
+
+    // One entry per quarter second is plenty; the FAULTS counter still counts every trip.
+    if (samplesRendered - lastFaultSample < (int64_t) (0.25 * currentSampleRate))
+        return;
+    lastFaultSample = samplesRendered;
+
+    int active = 0, held = 0;
+    for (const auto& v : voices)
+    {
+        active += v.isActive() ? 1 : 0;
+        held += v.isKeyDown() ? 1 : 0;
+    }
+
+    const int index = faultWrite.load (std::memory_order_relaxed);
+    auto& e = faultRing[(size_t) (index % (int) faultRing.size())];
+    e.stage = stage;
+    e.kind = kind;
+    e.level = level;
+    e.rise = rise;
+    e.seconds = (double) samplesRendered / currentSampleRate;
+    e.sinceNote = (double) (samplesRendered - lastNoteEventSample) / currentSampleRate;
+    e.activeVoices = active;
+    e.heldKeys = held;
+    e.playing = hostPlaying;
+    e.bpm = hostBpm;
+    faultWrite.store (index + 1, std::memory_order_release);
+}
+
+#if LABX3_HARNESS
+void LabX3AudioProcessor::injectTestSignal (int stage, float* left, float* right, int n) noexcept
+{
+    if (stage != injectStage || injectAtSample < 0 || samplesRendered + n <= injectAtSample)
+        return;
+
+    const int first = (int) std::max ((int64_t) 0, injectAtSample - samplesRendered);
+    if (injectMode == 0)
+    {
+        left[first] = right[first] = 1.0e6f;
+        injectStage = -1;
+        return;
+    }
+
+    for (int i = first; i < n; ++i)
+    {
+        const double t = (double) (samplesRendered + i - injectAtSample) / currentSampleRate;
+        const float amp = std::min (4.0f, 0.001f * (float) std::pow (2.0, t * 10.0));   // -60 dBFS, +6 dB per 100 ms
+        const float s = amp * (float) std::sin (juce::MathConstants<double>::twoPi * 200.0 * t);
+        left[i] += s;
+        right[i] += s;
+    }
+}
+#endif
+
+const char* LabX3AudioProcessor::stageName (int stage) noexcept
+{
+    static const char* names[] = { "VOICES", "SCRUB", "NOOSPHERE", "OUTPUT" };
+    return juce::isPositiveAndBelow (stage, (int) numStages) ? names[stage] : "?";
+}
+
+juce::File LabX3AudioProcessor::getFaultLogFile() const
+{
+    if (faultLogOverride != juce::File())
+        return faultLogOverride;
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+               .getChildFile (vendorName).getChildFile (juce::String (pluginName) + " faults.log");
+}
+
+int LabX3AudioProcessor::flushFaultLog()
+{
+    const int written = faultWrite.load (std::memory_order_acquire);
+    if (written == faultRead)
+        return 0;
+
+    // The ring holds the latest 64 entries; anything older was overwritten.
+    const int size = (int) faultRing.size();
+    const int from = std::max (faultRead, written - size);
+    const int lost = from - faultRead;
+    faultRead = written;
+
+    auto file = getFaultLogFile();
+    file.getParentDirectory().createDirectory();
+    juce::FileOutputStream out (file);
+    if (! out.openedOk())
+        return 0;
+    out.setPosition (out.getFile().getSize());
+
+    const auto stamp = juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H:%M:%S");
+    if (! faultLogHeaderWritten)
+    {
+        faultLogHeaderWritten = true;
+        out << "\n" << stamp << "  " << pluginName << " " << versionString << "  sample rate " << (int) currentSampleRate
+            << "  block " << preparedBlockSize << "\n";
+    }
+    if (lost > 0)
+        out << stamp << "  (" << lost << " entries lost: too many in half a second)\n";
+
+    int count = 0;
+    for (int i = from; i < written; ++i)
+    {
+        const auto f = faultRing[(size_t) (i % size)];
+        juce::String what;
+        if (f.kind == riseNotice)
+            what << "rose to " << juce::String (f.level, 1) << " dBFS, " << juce::String (f.rise, 1) << " dB over the level at key-up";
+        else if (f.kind == faultNonFinite)
+            what << "non-finite";
+        else
+            what << "peak " << juce::String (juce::Decibels::gainToDecibels (f.level, -240.0f), 1) << " dBFS";
+
+        out << stamp << "  " << (f.kind == riseNotice ? "RISE " : "FAULT") << "  "
+            << juce::String (stageName (f.stage)).paddedRight (' ', 9) << " " << what
+            << "  at " << juce::String (f.seconds, 2) << " s  voices " << f.activeVoices << "  keys " << f.heldKeys
+            << "  last note " << juce::String (f.sinceNote, 2) << " s ago  bpm " << juce::String (f.bpm, 1)
+            << (f.playing ? " playing" : " stopped") << "  preset " << getProgramName (currentProgram) << "\n";
+        ++count;
+    }
+
+    juce::String line ("    params:");
+    for (const auto& spec : paramSpecs())
+        line << " " << spec.id << "=" << juce::String (apvts.getRawParameterValue (spec.id)->load(), 3);
+    line << "  specimen=\"" << specimens.getStatusText() << "\"";
+    out << line << "\n";
+    out.flush();
+    return count;
 }
 
 void LabX3AudioProcessor::flushForProgramChange() noexcept
@@ -408,6 +630,8 @@ void LabX3AudioProcessor::recoverFromFault() noexcept
 void LabX3AudioProcessor::handleMidi (const juce::MidiMessage& m) noexcept
 {
     ++midiAccumulator;
+    if (m.isNoteOnOrOff())
+        lastNoteEventSample = samplesRendered;
 
     if (m.isNoteOn())
         noteOn (m.getNoteNumber(), m.getFloatVelocity());

@@ -160,6 +160,24 @@ namespace labx3::dsp
             }
         }
 
+        // Linear-interpolated read `delay` samples behind `write` in a circular buffer of `len` samples.
+        // The delay is split into whole and fractional samples before wrapping, so both indices are
+        // integers in range. (Wrapping a float position instead let write - delay, a hair below zero,
+        // round up to exactly len and read one sample past the end: heap garbage in the reverb.)
+        static float readDelay (const float* buffer, int len, int write, float delay) noexcept
+        {
+            delay = std::clamp (delay, 1.0f, (float) (len - 3));
+            const int whole = (int) delay;
+            const float frac = delay - (float) whole;
+            int a = write - whole;
+            if (a < 0)
+                a += len;
+            int b = a - 1;
+            if (b < 0)
+                b += len;
+            return buffer[a] + frac * (buffer[b] - buffer[a]);
+        }
+
     private:
         struct Line
         {
@@ -167,17 +185,7 @@ namespace labx3::dsp
             int write = 0;
             float lp = 0.0f;
 
-            float read (float delay, int len) const noexcept
-            {
-                delay = std::clamp (delay, 1.0f, (float) (len - 3));
-                float pos = (float) write - delay;
-                if (pos < 0.0f)
-                    pos += (float) len;
-                const int i0 = (int) pos;
-                const int i1 = i0 + 1 < len ? i0 + 1 : 0;
-                const float frac = pos - (float) i0;
-                return buffer[(size_t) i0] + frac * (buffer[(size_t) i1] - buffer[(size_t) i0]);
-            }
+            float read (float delay, int len) const noexcept { return readDelay (buffer.data(), len, write, delay); }
 
             void push (float x, int len) noexcept
             {
